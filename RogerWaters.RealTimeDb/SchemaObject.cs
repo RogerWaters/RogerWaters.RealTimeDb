@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace RogerWaters.RealTimeDb
 {
-    public class Class1
+    public abstract class SchemaObject
     {
+        public abstract void CleanupSchemaChanges();
     }
 }

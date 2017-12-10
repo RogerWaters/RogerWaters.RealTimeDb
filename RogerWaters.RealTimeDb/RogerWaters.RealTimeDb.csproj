@@ -1,16 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>358dbef7-c9a3-4d9f-849e-80137d174642</ProjectGuid>
+    <ProjectGuid>{358DBEF7-C9A3-4D9F-849E-80137D174642}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>RogerWaters.RealTimeDb</RootNamespace>
     <AssemblyName>RogerWaters.RealTimeDb</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -30,24 +31,60 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System"/>
-    
-    <Reference Include="System.Core"/>
-    <Reference Include="System.Xml.Linq"/>
-    <Reference Include="System.Data.DataSetExtensions"/>
-    
-    
-    <Reference Include="Microsoft.CSharp"/>
-    
-    <Reference Include="System.Data"/>
-    
-    <Reference Include="System.Net.Http"/>
-    
-    <Reference Include="System.Xml"/>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Reactive.Core, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Rx-Core.2.2.5\lib\net45\System.Reactive.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Reactive.Interfaces, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Rx-Interfaces.2.2.5\lib\net45\System.Reactive.Interfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Reactive.Linq, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Rx-Linq.2.2.5\lib\net45\System.Reactive.Linq.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Class1.cs" />
+    <Compile Include="SchemaObject.cs" />
+    <Compile Include="UserQuery.cs" />
+    <Compile Include="View.cs" />
+    <EmbeddedResource Include="Scripts\GetConversation.Sql" />
+    <EmbeddedResource Include="Scripts\CreateService.Sql" />
+    <EmbeddedResource Include="Scripts\CreateQueue.Sql" />
+    <EmbeddedResource Include="Scripts\CreateContract.Sql" />
+    <EmbeddedResource Include="Scripts\CreateMessageType.Sql" />
+    <EmbeddedResource Include="Scripts\CreateDeleteTrigger.Sql" />
+    <EmbeddedResource Include="Scripts\CreateUpdateTrigger.Sql" />
+    <EmbeddedResource Include="Scripts\CreateInsertTrigger.Sql" />
+    <Compile Include="CustomQuery.cs" />
+    <Compile Include="Database.cs" />
+    <Compile Include="DatabaseConfig.cs" />
+    <Compile Include="EventArgs\TableDataChangedEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Row.cs" />
+    <Compile Include="RowSchema.cs" />
+    <Compile Include="SqlHelper.cs" />
+    <Compile Include="Table.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\ReceiveMessages.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\CreateViewCache.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\CreateViewCachePrimaryIndex.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\MergeViewChanges.Sql" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
- </Project>
+</Project>
