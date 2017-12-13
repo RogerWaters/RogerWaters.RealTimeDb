@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Globalization;
 using System.IO;
@@ -61,6 +62,28 @@ namespace RogerWaters.RealTimeDb
         public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, string queueName)
         {
             return ReceiveMessages(tran, queueName, TimeSpan.Zero);
+        }
+
+        public static IEnumerable<string> ReceiveMessages(this string connectionString, string queueName, TimeSpan timeoutMs)
+        {
+            IEnumerable<string> result = Enumerable.Empty<string>();
+            connectionString.WithConnection(con =>
+            {
+                var transaction = con.BeginTransaction();
+                try
+                {
+                    result = ReceiveMessages(transaction, queueName, timeoutMs).ToArray();
+                    transaction.Commit();
+                }
+                finally
+                {
+                    if (transaction.Connection == null || transaction.Connection.State != ConnectionState.Closed)
+                    {
+                        transaction.Dispose();
+                    }
+                }
+            });
+            return result;
         }
 
         public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, string queueName, TimeSpan timeoutMs)

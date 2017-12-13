@@ -12,9 +12,13 @@ EXEC dbo.sp_executesql @statement = N'
 		DECLARE @message NVARCHAR(MAX) = CAST
 		(
 			(
-				SELECT *
-				FROM inserted AS row
-				FOR XML AUTO, ELEMENTS XSINIL, ROOT(''UPDATED'')
+				SELECT
+				(
+					SELECT *
+					FROM inserted AS row
+					FOR XML AUTO, ELEMENTS XSINIL, ROOT(''UPDATED''), TYPE
+				)
+				FOR XML PATH(''{tableName}'')
 			) 
 			AS NVARCHAR(MAX)
 		);

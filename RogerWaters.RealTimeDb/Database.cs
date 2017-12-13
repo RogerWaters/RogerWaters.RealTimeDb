@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace RogerWaters.RealTimeDb
 {
@@ -18,7 +18,6 @@ namespace RogerWaters.RealTimeDb
         private readonly List<CustomQuery> _customQueries = new List<CustomQuery>();
 
         private readonly Thread _messageReader;
-        private volatile bool _refreshTasks = true;
         private volatile bool _disposed = false;
         
         public IEnumerable<Table> Tables => _tables.Values.Where(t => t.Hidden == false);
@@ -29,6 +28,12 @@ namespace RogerWaters.RealTimeDb
             Config = config;
             MessageTypeName = config.MessageTypeName;
             ContractName = config.ContractName;
+            SenderQueueName = Config.SenderQueueNameTemplate;
+            ReceiverQueueName = Config.ReceiverQueueNameTemplate;
+            SenderServiceName = Config.SenderServiceNameTemplate;
+            ReceiverServiceName = Config.ReceiverServiceNameTemplate;
+
+            Guid conversation = Guid.Empty;
 
             config.DatabaseConnectionString.EnableBroker();
 
@@ -38,41 +43,46 @@ namespace RogerWaters.RealTimeDb
                 {
                     transaction.CreateMessageType(MessageTypeName);
                     transaction.CreateContract(ContractName, MessageTypeName);
+                    transaction.CreateQueue(SenderQueueName);
+                    transaction.CreateQueue(ReceiverQueueName);
+                    transaction.CreateService(SenderServiceName, SenderQueueName, config.ContractName);
+                    transaction.CreateService(ReceiverServiceName, ReceiverQueueName, config.ContractName);
+                    conversation = transaction.GetConversation(SenderServiceName, ReceiverServiceName, config.ContractName);
                     transaction.Commit();
                 }
             });
-
+            Conversation = conversation;
             _messageReader = new Thread(StartListen);
             _messageReader.Start();
         }
-        
+
+        public Guid Conversation { get; }
+
+        public string ReceiverServiceName { get; }
+
+        public string SenderServiceName { get; }
+
+        public string ReceiverQueueName { get; }
+
+        public string SenderQueueName { get; }
+
         private void StartListen()
         {
-            while (_refreshTasks)
+            while (true)
             {
-                _refreshTasks = false;
-                var tables = _tables.Values.ToList();
-                Task<IEnumerable<string>>[] tasks = new Task<IEnumerable<string>>[_tables.Count];
-                for (var i = 0; i < tables.Count; i++)
+                foreach (var message in Config.DatabaseConnectionString.ReceiveMessages(ReceiverQueueName, TimeSpan.FromSeconds(5)))
                 {
-                    tasks[i] = Config.DatabaseConnectionString.ReceiveMessagesAsync(tables[i].ReceiverQueueName, TimeSpan.FromSeconds(5));
-                }
-
-                while (_refreshTasks == false)
-                {
-                    var id = Task.WaitAny(tasks, TimeSpan.FromMinutes(1));
-                    if (id > -1)
+                    var root = XElement.Parse(message);
+                    if (_tables.TryGetValue(root.Name.LocalName,out Table t))
                     {
-                        tables[id].OnReceive(tasks[id].Result);
-                        tasks[id] = Config.DatabaseConnectionString.ReceiveMessagesAsync(tables[id].ReceiverQueueName, TimeSpan.FromSeconds(30));
+                        var entry = root.Elements().FirstOrDefault();
+                        if (entry != null)
+                        {
+                            t.OnReceive(entry);
+                        }
                     }
                 }
-                for (var i = 0; i < tasks.Length; i++)
-                {
-                    tables[i].OnReceive(tasks[i].Result);
-                }
             }
-            
         }
 
         public CustomQuery CustomQuery(UserQuery query)
@@ -86,7 +96,6 @@ namespace RogerWaters.RealTimeDb
             {
                 throw new InvalidOperationException($"Table with Name {table.TableName} already in Collection");
             }
-            _refreshTasks = true;
         }
 
         internal void AddView(View view)
@@ -125,11 +134,7 @@ namespace RogerWaters.RealTimeDb
 
         public Table GetOrAddTable(string tableName)
         {
-            return _tables.GetOrAdd(tableName, t =>
-            {
-                _refreshTasks = true;
-                return new Table(this, tableName);
-            });
+            return _tables.GetOrAdd(tableName, t => new Table(this, tableName));
         }
 
         public View GetOrAddView(string viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
@@ -175,6 +180,11 @@ namespace RogerWaters.RealTimeDb
             {
                 using (var transaction = con.BeginTransaction())
                 {
+                    transaction.EndConversation(Conversation);
+                    transaction.DropService(SenderServiceName);
+                    transaction.DropService(ReceiverServiceName);
+                    transaction.DropQueue(SenderQueueName);
+                    transaction.DropQueue(ReceiverQueueName);
                     transaction.DropContract(ContractName);
                     transaction.DropMessageType(MessageTypeName);
                     transaction.Commit();

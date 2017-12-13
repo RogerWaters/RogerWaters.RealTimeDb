@@ -15,34 +15,22 @@ namespace RogerWaters.RealTimeDb
         /// <summary>
         /// Template used to generate receiver queue name
         /// </summary>
-        /// <remarks>
-        /// 0: Name of the Table
-        /// </remarks>
-        public string ReceiverQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Receiver/{0}";
+        public string ReceiverQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Receiver";
 
         /// <summary>
         /// Template used to generate sender queue name
         /// </summary>
-        /// <remarks>
-        /// 0: Name of the Table
-        /// </remarks>
-        public string SenderQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Sender/{0}";
+        public string SenderQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Sender";
 
         /// <summary>
         /// Template used to generate receiver service name
         /// </summary>
-        /// <remarks>
-        /// 0: Name of the Table
-        /// </remarks>
-        public string ReceiverServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/ReceiverService/{0}";
+        public string ReceiverServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/ReceiverService";
 
         /// <summary>
         /// Template used to generate sender service name
         /// </summary>
-        /// <remarks>
-        /// 0: Name of the Table
-        /// </remarks>
-        public string SenderServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/SenderService/{0}";
+        public string SenderServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/SenderService";
 
         /// <summary>
         /// Name that will be used as the message type

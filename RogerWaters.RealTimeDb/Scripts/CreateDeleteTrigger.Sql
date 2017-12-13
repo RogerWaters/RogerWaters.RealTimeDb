@@ -12,9 +12,13 @@ EXEC dbo.sp_executesql @statement = N'
 		DECLARE @message NVARCHAR(MAX) = CAST
 		(
 			(
-				SELECT *
-				FROM deleted AS row
-				FOR XML AUTO, ELEMENTS XSINIL, ROOT(''DELETED'')
+				SELECT
+				(
+					SELECT *
+					FROM deleted AS row
+					FOR XML AUTO, ELEMENTS XSINIL, ROOT(''DELETED''), TYPE
+				)
+				FOR XML PATH(''{tableName}'')
 			) 
 			AS NVARCHAR(MAX)
 		);

@@ -42,9 +42,8 @@ namespace RogerWaters.RealTimeDb
             return (names, namesLookup, types);
         }
 
-        public bool TryGetEventRows(string data, out IEnumerable<Row> rows, out string eventType)
+        public bool TryGetEventRows(XElement root, out IEnumerable<Row> rows, out string eventType)
         {
-            var root = XElement.Parse(data);
             eventType = root.Name.LocalName;
             List<Row> rowsReturn = new List<Row>();
             foreach (var rowElement in root.Descendants("row"))
