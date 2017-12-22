@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,14 +16,25 @@ namespace RogerWaters.RealTimeDb
             _data = new object[schema.ColumnCount];
         }
 
-
         public int Count => _data.Length;
 
         public object this[int index]
         {
             get => _data[index];
-            internal set => _data[index] = value;
+            internal set
+            {
+                if (value == null)
+                {
+                    _data[index] = DBNull.Value;
+                }
+                else
+                {
+                    _data[index] = value;
+                }
+            }
         }
+
+        public object[] Key => _schema.GetKey(this);
 
         public IEnumerator<object> GetEnumerator()
         {

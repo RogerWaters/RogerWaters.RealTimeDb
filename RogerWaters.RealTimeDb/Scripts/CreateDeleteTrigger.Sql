@@ -1,10 +1,10 @@
-﻿IF EXISTS (SELECT * FROM sys.triggers WHERE name = '{triggerName}')
+﻿IF EXISTS (SELECT * FROM sys.triggers WHERE object_id = OBJECT_ID('{triggerName}'))
 BEGIN
-	DROP TRIGGER [{triggerName}]
+	DROP TRIGGER {triggerName}
 END
 EXEC dbo.sp_executesql @statement = N'
-	CREATE TRIGGER [{triggerName}]
-	ON [{tableName}]
+	CREATE TRIGGER {triggerName}
+	ON {tableName}
 	FOR DELETE
 	AS
 	BEGIN
@@ -18,7 +18,7 @@ EXEC dbo.sp_executesql @statement = N'
 					FROM deleted AS row
 					FOR XML AUTO, ELEMENTS XSINIL, ROOT(''DELETED''), TYPE
 				)
-				FOR XML PATH(''{tableName}'')
+				FOR XML PATH(''{tableName.Schema}.{tableName.Name}'')
 			) 
 			AS NVARCHAR(MAX)
 		);
@@ -29,6 +29,6 @@ EXEC dbo.sp_executesql @statement = N'
 		END;
 
 		SEND ON CONVERSATION (@dialogHandle)
-		MESSAGE TYPE [{messageType}]
+		MESSAGE TYPE {messageType}
 		(@message)
 	END'

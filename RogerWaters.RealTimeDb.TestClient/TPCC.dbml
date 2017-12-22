@@ -1,0 +1,133 @@
+﻿<?xml version="1.0" encoding="utf-8"?><Database Name="tpcc" Class="TPCCDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
+  <Connection Mode="AppSettings" ConnectionString="Data Source=localhost;Initial Catalog=tpcc;Integrated Security=True" SettingsObjectName="RogerWaters.RealTimeDb.TestClient.Properties.Settings" SettingsPropertyName="tpccConnectionString" Provider="System.Data.SqlClient" />
+  <Table Name="dbo.customer" Member="customer">
+    <Type Name="customer">
+      <Column Name="c_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="c_d_id" Type="System.Byte" DbType="TinyInt NOT NULL" CanBeNull="false" />
+      <Column Name="c_w_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="c_discount" Type="System.Decimal" DbType="SmallMoney" CanBeNull="true" />
+      <Column Name="c_credit_lim" Type="System.Decimal" DbType="Money" CanBeNull="true" />
+      <Column Name="c_last" Type="System.String" DbType="Char(16)" CanBeNull="true" />
+      <Column Name="c_first" Type="System.String" DbType="Char(16)" CanBeNull="true" />
+      <Column Name="c_credit" Type="System.String" DbType="Char(2)" CanBeNull="true" />
+      <Column Name="c_balance" Type="System.Decimal" DbType="Money" CanBeNull="true" />
+      <Column Name="c_ytd_payment" Type="System.Decimal" DbType="Money" CanBeNull="true" />
+      <Column Name="c_payment_cnt" Type="System.Int16" DbType="SmallInt" CanBeNull="true" />
+      <Column Name="c_delivery_cnt" Type="System.Int16" DbType="SmallInt" CanBeNull="true" />
+      <Column Name="c_street_1" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="c_street_2" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="c_city" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="c_state" Type="System.String" DbType="Char(2)" CanBeNull="true" />
+      <Column Name="c_zip" Type="System.String" DbType="Char(9)" CanBeNull="true" />
+      <Column Name="c_phone" Type="System.String" DbType="Char(16)" CanBeNull="true" />
+      <Column Name="c_since" Type="System.DateTime" DbType="DateTime" CanBeNull="true" />
+      <Column Name="c_middle" Type="System.String" DbType="Char(2)" CanBeNull="true" />
+      <Column Name="c_data" Type="System.String" DbType="Char(500)" CanBeNull="true" />
+    </Type>
+  </Table>
+  <Table Name="dbo.warehouse" Member="warehouse">
+    <Type Name="warehouse">
+      <Column Name="w_id" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="w_ytd" Type="System.Decimal" DbType="Money NOT NULL" CanBeNull="false" />
+      <Column Name="w_tax" Type="System.Decimal" DbType="SmallMoney NOT NULL" CanBeNull="false" />
+      <Column Name="w_name" Type="System.String" DbType="Char(10)" CanBeNull="true" />
+      <Column Name="w_street_1" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="w_street_2" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="w_city" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="w_state" Type="System.String" DbType="Char(2)" CanBeNull="true" />
+      <Column Name="w_zip" Type="System.String" DbType="Char(9)" CanBeNull="true" />
+      <Column Name="padding" Type="System.String" DbType="Char(4000) NOT NULL" CanBeNull="false" />
+    </Type>
+  </Table>
+  <Table Name="dbo.district" Member="district">
+    <Type Name="district">
+      <Column Name="d_id" Type="System.Byte" DbType="TinyInt NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="d_w_id" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="d_ytd" Type="System.Decimal" DbType="Money NOT NULL" CanBeNull="false" />
+      <Column Name="d_next_o_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="d_tax" Type="System.Decimal" DbType="SmallMoney" CanBeNull="true" />
+      <Column Name="d_name" Type="System.String" DbType="Char(10)" CanBeNull="true" />
+      <Column Name="d_street_1" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="d_street_2" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="d_city" Type="System.String" DbType="Char(20)" CanBeNull="true" />
+      <Column Name="d_state" Type="System.String" DbType="Char(2)" CanBeNull="true" />
+      <Column Name="d_zip" Type="System.String" DbType="Char(9)" CanBeNull="true" />
+      <Column Name="padding" Type="System.String" DbType="Char(6000) NOT NULL" CanBeNull="false" />
+    </Type>
+  </Table>
+  <Table Name="dbo.history" Member="history">
+    <Type Name="history">
+      <Column Name="h_c_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="h_c_d_id" Type="System.Byte" DbType="TinyInt" CanBeNull="true" />
+      <Column Name="h_c_w_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="h_d_id" Type="System.Byte" DbType="TinyInt" CanBeNull="true" />
+      <Column Name="h_w_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="h_date" Type="System.DateTime" DbType="DateTime" CanBeNull="true" />
+      <Column Name="h_amount" Type="System.Decimal" DbType="SmallMoney" CanBeNull="true" />
+      <Column Name="h_data" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+    </Type>
+  </Table>
+  <Table Name="dbo.item" Member="item">
+    <Type Name="item">
+      <Column Name="i_id" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="i_name" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="i_price" Type="System.Decimal" DbType="SmallMoney" CanBeNull="true" />
+      <Column Name="i_data" Type="System.String" DbType="Char(50)" CanBeNull="true" />
+      <Column Name="i_im_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+    </Type>
+  </Table>
+  <Table Name="dbo.new_order" Member="new_order">
+    <Type Name="new_order">
+      <Column Name="no_o_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="no_d_id" Type="System.Byte" DbType="TinyInt NOT NULL" CanBeNull="false" />
+      <Column Name="no_w_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+    </Type>
+  </Table>
+  <Table Name="dbo.order_line" Member="order_line">
+    <Type Name="order_line">
+      <Column Name="ol_o_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="ol_d_id" Type="System.Byte" DbType="TinyInt NOT NULL" CanBeNull="false" />
+      <Column Name="ol_w_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="ol_number" Type="System.Byte" DbType="TinyInt NOT NULL" CanBeNull="false" />
+      <Column Name="ol_i_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="ol_delivery_d" Type="System.DateTime" DbType="DateTime" CanBeNull="true" />
+      <Column Name="ol_amount" Type="System.Decimal" DbType="SmallMoney" CanBeNull="true" />
+      <Column Name="ol_supply_w_id" Type="System.Int32" DbType="Int" CanBeNull="true" />
+      <Column Name="ol_quantity" Type="System.Int16" DbType="SmallInt" CanBeNull="true" />
+      <Column Name="ol_dist_info" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+    </Type>
+  </Table>
+  <Table Name="dbo.orders" Member="orders">
+    <Type Name="orders">
+      <Column Name="o_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="o_d_id" Type="System.Byte" DbType="TinyInt NOT NULL" CanBeNull="false" />
+      <Column Name="o_w_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="o_c_id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="o_carrier_id" Type="System.Byte" DbType="TinyInt" CanBeNull="true" />
+      <Column Name="o_ol_cnt" Type="System.Byte" DbType="TinyInt" CanBeNull="true" />
+      <Column Name="o_all_local" Type="System.Byte" DbType="TinyInt" CanBeNull="true" />
+      <Column Name="o_entry_d" Type="System.DateTime" DbType="DateTime" CanBeNull="true" />
+    </Type>
+  </Table>
+  <Table Name="dbo.stock" Member="stock">
+    <Type Name="stock">
+      <Column Name="s_i_id" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="s_w_id" Type="System.Int32" DbType="Int NOT NULL" IsPrimaryKey="true" CanBeNull="false" />
+      <Column Name="s_quantity" Type="System.Int16" DbType="SmallInt NOT NULL" CanBeNull="false" />
+      <Column Name="s_ytd" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />
+      <Column Name="s_order_cnt" Type="System.Int16" DbType="SmallInt" CanBeNull="true" />
+      <Column Name="s_remote_cnt" Type="System.Int16" DbType="SmallInt" CanBeNull="true" />
+      <Column Name="s_data" Type="System.String" DbType="Char(50)" CanBeNull="true" />
+      <Column Name="s_dist_01" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_02" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_03" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_04" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_05" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_06" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_07" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_08" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_09" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+      <Column Name="s_dist_10" Type="System.String" DbType="Char(24)" CanBeNull="true" />
+    </Type>
+  </Table>
+</Database>

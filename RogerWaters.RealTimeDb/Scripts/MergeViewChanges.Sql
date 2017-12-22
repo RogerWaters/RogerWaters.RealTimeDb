@@ -1,7 +1,7 @@
 ﻿SET ANSI_NULLS OFF;
 MERGE   
-    INTO [{cacheName}] AS [{targetAlias}]
-    USING [{viewName}] AS [{sourceAlias}]
+    INTO {cacheName} AS [{targetAlias}]
+    USING {viewName} AS [{sourceAlias}]
     ON 
 		{keyColumnsMatchCondition}
 {whenMatchedClause}

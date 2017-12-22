@@ -1,7 +1,7 @@
-﻿IF NOT EXISTS (SELECT * FROM sys.service_contracts WHERE name = '{contractName}')
+﻿IF NOT EXISTS (SELECT * FROM sys.service_contracts WHERE name = '{contractName.Name}')
 BEGIN
-	CREATE CONTRACT [{contractName}]
+	CREATE CONTRACT {contractName}
 	(
-		[{messageTypeName}] SENT BY ANY
+		{messageTypeName} SENT BY ANY
 	)
 END

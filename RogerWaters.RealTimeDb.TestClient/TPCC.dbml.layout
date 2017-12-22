@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ordesignerObjectsDiagram dslVersion="1.0.0.0" absoluteBounds="0, 0, 12, 11.75" name="TPCC">
+  <DataContextMoniker Name="/TPCCDataContext" />
+  <nestedChildShapes>
+    <classShape Id="a6d01afc-2b58-437e-954d-54686f2775c7" absoluteBounds="0.75, 0.75, 2, 4.8477197265625">
+      <DataClassMoniker Name="/TPCCDataContext/customer" />
+      <nestedChildShapes>
+        <elementListCompartment Id="1262c6ea-bd32-41e0-b5cd-d33ddf17614b" absoluteBounds="0.765, 1.21, 1.9700000000000002, 4.2877197265625" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="1ddba111-75ea-4e14-89d3-5757c5b6e99a" absoluteBounds="3.75, 0.75, 2, 2.7324039713541666">
+      <DataClassMoniker Name="/TPCCDataContext/warehouse" />
+      <nestedChildShapes>
+        <elementListCompartment Id="13773e65-fa67-41bc-a358-fd6418acedaf" absoluteBounds="3.765, 1.21, 1.9700000000000002, 2.1724039713541665" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="767c8a4b-f264-4ac3-8142-bc31178b9fd1" absoluteBounds="3.75, 4.75, 2, 3.1170068359375005">
+      <DataClassMoniker Name="/TPCCDataContext/district" />
+      <nestedChildShapes>
+        <elementListCompartment Id="ece09f85-19f0-4885-a746-ae22f6fbe304" absoluteBounds="3.765, 5.21, 1.9700000000000002, 2.5570068359375" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="150d62c6-9f8e-4fcd-80d7-d32bde1febca" absoluteBounds="6.75, 0.75, 2, 2.3478011067708335">
+      <DataClassMoniker Name="/TPCCDataContext/history" />
+      <nestedChildShapes>
+        <elementListCompartment Id="4a31a968-841a-43de-8162-800c5131ea46" absoluteBounds="6.765, 1.21, 1.9700000000000002, 1.7878011067708335" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="31455d5e-f701-44f8-b003-a17e356806fa" absoluteBounds="6.75, 4.75, 2, 1.7708968098958327">
+      <DataClassMoniker Name="/TPCCDataContext/item" />
+      <nestedChildShapes>
+        <elementListCompartment Id="5afaef38-7cce-4f4d-ba3a-7ea5c862f0ff" absoluteBounds="6.765, 5.21, 1.9700000000000002, 1.2108968098958333" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="438e26a7-b091-43fd-82e0-a38e7cdff237" absoluteBounds="6.75, 7.75, 2, 1.3862939453124996">
+      <DataClassMoniker Name="/TPCCDataContext/new_order" />
+      <nestedChildShapes>
+        <elementListCompartment Id="0874b444-c35f-400b-9826-539eb29dccbd" absoluteBounds="6.765, 8.21, 1.9700000000000002, 0.8262939453125" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="020e9459-cbd2-4246-92c8-ec7bec72f47f" absoluteBounds="0.75, 8.75, 2, 2.7324039713541666">
+      <DataClassMoniker Name="/TPCCDataContext/order_line" />
+      <nestedChildShapes>
+        <elementListCompartment Id="20b7517d-90dd-4f26-a865-b304479e1eff" absoluteBounds="0.765, 9.21, 1.9700000000000002, 2.1724039713541665" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="f3f392ce-b91f-4920-8827-3a0e6fa44248" absoluteBounds="9.75, 0.75, 2, 2.3478011067708335">
+      <DataClassMoniker Name="/TPCCDataContext/orders" />
+      <nestedChildShapes>
+        <elementListCompartment Id="5a601695-a00c-4585-85b0-d57862d718ef" absoluteBounds="9.765, 1.21, 1.9700000000000002, 1.7878011067708335" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+    <classShape Id="ca2f39f9-90a8-437b-974e-8c76cd142eff" absoluteBounds="9.75, 4.75, 2, 4.0785139973958326">
+      <DataClassMoniker Name="/TPCCDataContext/stock" />
+      <nestedChildShapes>
+        <elementListCompartment Id="5e74df7a-fc9f-44fd-96b1-1202ce58bf40" absoluteBounds="9.765, 5.21, 1.9700000000000002, 3.518513997395833" name="DataPropertiesCompartment" titleTextColor="Black" itemTextColor="Black" />
+      </nestedChildShapes>
+    </classShape>
+  </nestedChildShapes>
+</ordesignerObjectsDiagram>

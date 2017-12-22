@@ -33,6 +33,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Data.Linq" />
     <Reference Include="System.Reactive.Core, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Rx-Core.2.2.5\lib\net45\System.Reactive.Core.dll</HintPath>
     </Reference>
@@ -42,6 +43,7 @@
     <Reference Include="System.Reactive.Linq, Version=2.2.5.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Rx-Linq.2.2.5\lib\net45\System.Reactive.Linq.dll</HintPath>
     </Reference>
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -50,9 +52,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="SchemaObject.cs" />
-    <Compile Include="UserQuery.cs" />
-    <Compile Include="View.cs" />
+    <Compile Include="Linq2Sql\DisposeBehavior.cs" />
+    <Compile Include="Linq2Sql\RealtimeDbDataContext.cs" />
+    <Compile Include="Linq2Sql\KeyVisitor.cs" />
+    <Compile Include="Linq2Sql\TypedUserQuery.cs" />
+    <Compile Include="ReducableDictionary.cs" />
+    <Compile Include="RowChangeKind.cs" />
+    <Compile Include="SqlObjects\SchemaObject.cs" />
+    <Compile Include="SqlObjects\UserQuery.cs" />
+    <Compile Include="SqlObjects\SqlSchemalessObjectName.cs" />
+    <Compile Include="SqlObjects\SqlObjectName.cs" />
+    <Compile Include="SqlObjects\View.cs" />
     <EmbeddedResource Include="Scripts\GetConversation.Sql" />
     <EmbeddedResource Include="Scripts\CreateService.Sql" />
     <EmbeddedResource Include="Scripts\CreateQueue.Sql" />
@@ -61,15 +71,15 @@
     <EmbeddedResource Include="Scripts\CreateDeleteTrigger.Sql" />
     <EmbeddedResource Include="Scripts\CreateUpdateTrigger.Sql" />
     <EmbeddedResource Include="Scripts\CreateInsertTrigger.Sql" />
-    <Compile Include="CustomQuery.cs" />
-    <Compile Include="Database.cs" />
+    <Compile Include="SqlObjects\CustomQuery.cs" />
+    <Compile Include="SqlObjects\Database.cs" />
     <Compile Include="DatabaseConfig.cs" />
     <Compile Include="EventArgs\TableDataChangedEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Row.cs" />
     <Compile Include="RowSchema.cs" />
     <Compile Include="SqlHelper.cs" />
-    <Compile Include="Table.cs" />
+    <Compile Include="SqlObjects\Table.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Scripts\ReceiveMessages.Sql" />
@@ -85,6 +95,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Scripts\MergeViewChanges.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\GetPrimaryIndexes.Sql" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

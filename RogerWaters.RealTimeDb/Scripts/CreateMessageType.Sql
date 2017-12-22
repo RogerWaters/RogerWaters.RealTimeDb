@@ -1,5 +1,5 @@
-﻿IF NOT EXISTS (SELECT * FROM sys.service_message_types WHERE name = '{messageTypeName}')
+﻿IF NOT EXISTS (SELECT * FROM sys.service_message_types WHERE name = '{messageTypeName.Name}')
 BEGIN
-	CREATE MESSAGE TYPE [{messageTypeName}]
+	CREATE MESSAGE TYPE {messageTypeName}
 	VALIDATION = NONE
 END

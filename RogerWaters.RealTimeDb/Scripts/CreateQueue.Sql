@@ -1,6 +1,6 @@
-﻿IF NOT EXISTS (SELECT * FROM sys.service_queues WHERE name = '{queueName}')
+﻿IF NOT EXISTS (SELECT * FROM sys.service_queues WHERE object_id = OBJECT_ID('{queueName}'))
 BEGIN
-	CREATE QUEUE [{queueName}]
+	CREATE QUEUE {queueName}
 	WITH 
 		STATUS = ON, 
 		RETENTION = OFF,

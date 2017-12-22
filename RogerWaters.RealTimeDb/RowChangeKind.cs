@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 
 namespace RogerWaters.RealTimeDb
 {
-    public abstract class SchemaObject
+    public enum RowChangeKind
     {
-        public abstract void CleanupSchemaChanges();
+        INSERTED,
+        UPDATED,
+        DELETED
     }
 }

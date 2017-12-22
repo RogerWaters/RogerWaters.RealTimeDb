@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace RogerWaters.RealTimeDb
+namespace RogerWaters.RealTimeDb.SqlObjects
 {
     public abstract class UserQuery
     {
@@ -13,7 +9,7 @@ namespace RogerWaters.RealTimeDb
         public abstract string PrimaryKeyColumn { get; }
         public abstract string[] AdditionalPrimaryKeyColumns { get; }
 
-        public abstract void Initialize(SqlDataReader obj);
+        public abstract void Initialize(SqlDataReader obj, RowSchema schema);
 
         public abstract void RowsInserted(IReadOnlyList<Row> rows);
 

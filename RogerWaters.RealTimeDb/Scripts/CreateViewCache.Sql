@@ -1,8 +1,8 @@
-﻿IF OBJECT_ID('dbo.{cacheName}') IS NOT NULL
+﻿IF OBJECT_ID('{cacheName}') IS NOT NULL
 BEGIN
-	DROP TABLE [{cacheName}]
+	DROP TABLE {cacheName}
 END
 
 SELECT *
-INTO [{cacheName}]
-FROM [{viewName}]
+INTO {cacheName}
+FROM {viewName}

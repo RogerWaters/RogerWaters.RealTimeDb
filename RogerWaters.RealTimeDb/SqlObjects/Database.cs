@@ -5,24 +5,34 @@ using System.Linq;
 using System.Threading;
 using System.Xml.Linq;
 
-namespace RogerWaters.RealTimeDb
+namespace RogerWaters.RealTimeDb.SqlObjects
 {
-    public sealed class Database : SchemaObject, IDisposable
+    /// <summary>
+    /// 
+    /// </summary>
+    internal sealed class Database : SchemaObject, IDisposable
     {
         internal DatabaseConfig Config { get; }
-        public string ContractName { get; }
-        public string MessageTypeName { get; }
+        public SqlSchemalessObjectName ContractName { get; }
+        public SqlSchemalessObjectName MessageTypeName { get; }
 
-        private readonly ConcurrentDictionary<string,Table> _tables = new ConcurrentDictionary<string, Table>();
-        private readonly ConcurrentDictionary<string,View> _views = new ConcurrentDictionary<string, View>();
+        public Guid Conversation { get; }
+
+        public SqlSchemalessObjectName ReceiverServiceName { get; }
+
+        public SqlSchemalessObjectName SenderServiceName { get; }
+
+        public SqlObjectName ReceiverQueueName { get; }
+
+        public SqlObjectName SenderQueueName { get; }
+
+        private readonly ConcurrentDictionary<SqlObjectName, Table> _tables = new ConcurrentDictionary<SqlObjectName, Table>();
+        private readonly ConcurrentDictionary<SqlObjectName, View> _views = new ConcurrentDictionary<SqlObjectName, View>();
         private readonly List<CustomQuery> _customQueries = new List<CustomQuery>();
 
         private readonly Thread _messageReader;
         private volatile bool _disposed = false;
         
-        public IEnumerable<Table> Tables => _tables.Values.Where(t => t.Hidden == false);
-        public IEnumerable<View> Views => _views.Values.Where(v => v.Hidden == false);
-
         public Database(DatabaseConfig config)
         {
             Config = config;
@@ -56,16 +66,6 @@ namespace RogerWaters.RealTimeDb
             _messageReader.Start();
         }
 
-        public Guid Conversation { get; }
-
-        public string ReceiverServiceName { get; }
-
-        public string SenderServiceName { get; }
-
-        public string ReceiverQueueName { get; }
-
-        public string SenderQueueName { get; }
-
         private void StartListen()
         {
             while (true)
@@ -85,16 +85,16 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
-        public CustomQuery CustomQuery(UserQuery query)
+        internal CustomQuery CustomQuery(UserQuery query)
         {
             return new CustomQuery(this, query);
         }
 
         internal void AddTable(Table table)
         {
-            if (!_tables.TryAdd(table.TableName,table))
+            if (!_tables.TryAdd(table.SqlObjectName,table))
             {
-                throw new InvalidOperationException($"Table with Name {table.TableName} already in Collection");
+                throw new InvalidOperationException($"Table with Name {table.SqlObjectName} already in Collection");
             }
         }
 
@@ -118,7 +118,7 @@ namespace RogerWaters.RealTimeDb
 
         internal void RemoveTable(Table table)
         {
-            if (_tables.TryRemove(table.TableName, out Table t))
+            if (_tables.TryRemove(table.SqlObjectName, out Table t))
             {
                 
             }
@@ -132,12 +132,12 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
-        public Table GetOrAddTable(string tableName)
+        public Table GetOrAddTable(SqlObjectName sqlObjectName)
         {
-            return _tables.GetOrAdd(tableName, t => new Table(this, tableName));
+            return _tables.GetOrAdd(sqlObjectName, t => new Table(this, sqlObjectName));
         }
 
-        public View GetOrAddView(string viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
+        public View GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
         {
             return _views.GetOrAdd(viewName, v => new View(this, viewName, primaryKeyColumn, primaryKeyColumns));
         }

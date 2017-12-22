@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using RogerWaters.RealTimeDb.SqlObjects;
 
 namespace RogerWaters.RealTimeDb
 {
@@ -41,6 +42,7 @@ namespace RogerWaters.RealTimeDb
             {
                 command.CommandText = query;
                 command.Transaction = tran;
+                command.CommandTimeout = 0;
                 return command.ExecuteNonQuery();
             }
         }
@@ -59,12 +61,12 @@ namespace RogerWaters.RealTimeDb
             });
         }
 
-        public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, string queueName)
+        public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, SqlObjectName queueName)
         {
             return ReceiveMessages(tran, queueName, TimeSpan.Zero);
         }
 
-        public static IEnumerable<string> ReceiveMessages(this string connectionString, string queueName, TimeSpan timeoutMs)
+        public static IEnumerable<string> ReceiveMessages(this string connectionString, SqlObjectName queueName, TimeSpan timeoutMs)
         {
             IEnumerable<string> result = Enumerable.Empty<string>();
             connectionString.WithConnection(con =>
@@ -86,7 +88,7 @@ namespace RogerWaters.RealTimeDb
             return result;
         }
 
-        public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, string queueName, TimeSpan timeoutMs)
+        public static IEnumerable<string> ReceiveMessages(this SqlTransaction tran, SqlObjectName queueName, TimeSpan timeoutMs)
         {
             var script = LoadScript("ReceiveMessages");
             script = script.Replace("{queueName}", queueName);
@@ -95,7 +97,7 @@ namespace RogerWaters.RealTimeDb
             {
                 command.CommandText = script;
                 command.Transaction = tran;
-                command.CommandTimeout = (int) timeoutMs.Add(TimeSpan.FromSeconds(2)).TotalSeconds;
+                command.CommandTimeout = 0;
                 using (var reader = command.ExecuteReader())
                 {
                     while (reader.Read())
@@ -106,7 +108,7 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
-        public static async Task<IEnumerable<string>> ReceiveMessagesAsync(this string connectionString, string queueName, TimeSpan timeoutMs)
+        public static async Task<IEnumerable<string>> ReceiveMessagesAsync(this string connectionString, SqlObjectName queueName, TimeSpan timeoutMs)
         {
             List<string> messages = new List<string>();
             var script = LoadScript("ReceiveMessages");
@@ -136,22 +138,23 @@ namespace RogerWaters.RealTimeDb
             return messages;
         }
 
-        public static void CreateContract(this SqlTransaction tran, string contractName, string messageTypeName)
+        public static void CreateContract(this SqlTransaction tran, SqlSchemalessObjectName contractName, SqlSchemalessObjectName messageTypeName)
         {
             var script = LoadScript("CreateContract");
+            script = script.Replace("{contractName.Name}", contractName.Name);
             script = script.Replace("{contractName}", contractName);
             script = script.Replace("{messageTypeName}", messageTypeName);
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateQueue(this SqlTransaction tran, string queueName)
+        public static void CreateQueue(this SqlTransaction tran, SqlObjectName queueName)
         {
             var script = LoadScript("CreateQueue");
             script = script.Replace("{queueName}", queueName);
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateViewCache(this SqlTransaction tran, string viewName, string cacheName)
+        public static void CreateViewCache(this SqlTransaction tran, SqlObjectName viewName, SqlObjectName cacheName)
         {
             var script = LoadScript("CreateViewCache");
             script = script.Replace("{viewName}", viewName);
@@ -159,15 +162,50 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateViewCachePrimaryIndex(this SqlTransaction tran, string cacheName, params string[] primaryColumns)
+        public static void CreateViewCachePrimaryIndex(this SqlTransaction tran, SqlObjectName cacheName, params string[] primaryColumns)
         {
             var script = LoadScript("CreateViewCachePrimaryIndex");
+            script = script.Replace("{cacheName.Schema}", cacheName.Schema);
+            script = script.Replace("{cacheName.Name}", cacheName.Name);
             script = script.Replace("{cacheName}", cacheName);
             script = script.Replace("{primaryColumnList}", String.Join(", ",primaryColumns.Select(c => $"[{c}]")));
             tran.ExecuteNonQuery(script);
         }
 
-        public static void MergeViewChanges(this string sqlConnection, string cacheName, string viewName, string[] keyColumns, string[] valueColumns)
+        public static IReadOnlyCollection<string> GetPrimaryKeyColumns(this string sqlConnectionString, SqlObjectName tableName)
+        {
+            var script = LoadScript("GetPrimaryIndexes");
+            script = script.Replace("{tableName}", tableName);
+            List<Tuple<string,string,string>> indexedPrimaryColumns = new List<Tuple<string, string, string>>();
+            sqlConnectionString.WithReader(script, reader =>
+            {
+                while (reader.Read())
+                {
+                    indexedPrimaryColumns.Add
+                    (
+                        new Tuple<string, string, string>
+                        (
+                            reader.GetString(0),
+                            reader.GetString(1),
+                            reader.GetString(2)
+                        )
+                    );
+                }
+            });
+            var columns = indexedPrimaryColumns.Where(c => c.Item2 == "PK").Select(c => c.Item3).ToList();
+            if (columns.Count > 0)
+            {
+                return columns;
+            }
+            var someKeys = indexedPrimaryColumns.Where(c => c.Item2 == "UX").GroupBy(c => c.Item1,c => c.Item3).FirstOrDefault();
+            if (someKeys != null)
+            {
+                return someKeys.ToList();
+            }
+            return new List<string>();
+        }
+
+        public static void MergeViewChanges(this string sqlConnection, SqlObjectName cacheName, SqlObjectName viewName, string[] keyColumns, string[] valueColumns)
         {
             var script = LoadScript("MergeViewChanges");
             script = script.Replace("{cacheName}", cacheName);
@@ -213,75 +251,80 @@ namespace RogerWaters.RealTimeDb
             {
                 using (var command = con.CreateCommand())
                 {
+                    command.CommandTimeout = 0;
                     command.CommandText = script;
                     command.ExecuteNonQuery();
                 }
             });
         }
 
-        public static void CreateService(this SqlTransaction tran, string serviceName, string queueName, string contractName)
+        public static void CreateService(this SqlTransaction tran, SqlSchemalessObjectName serviceName, SqlObjectName queueName, SqlSchemalessObjectName contractName)
         {
             var script = LoadScript("CreateService");
+            script = script.Replace("{serviceName.Name}", serviceName.Name);
             script = script.Replace("{serviceName}", serviceName);
             script = script.Replace("{queueName}", queueName);
             script = script.Replace("{contractName}", contractName);
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateTriggerDelete(this SqlTransaction tran, string triggerName, string tableName, string dialogHandle, string messageType)
+        public static void CreateTriggerDelete(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
         {
             tran.CreateTrigger("CreateDeleteTrigger", triggerName, tableName,dialogHandle, messageType);
         }
-        public static void CreateTriggerInsert(this SqlTransaction tran, string triggerName, string tableName, string dialogHandle, string messageType)
+        public static void CreateTriggerInsert(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
         {
             tran.CreateTrigger("CreateInsertTrigger", triggerName, tableName,dialogHandle, messageType);
         }
 
-        public static void CreateTriggerUpdate(this SqlTransaction tran, string triggerName, string tableName, string dialogHandle, string messageType)
+        public static void CreateTriggerUpdate(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
         {
             tran.CreateTrigger("CreateUpdateTrigger",triggerName,tableName,dialogHandle, messageType);
         }
 
-        public static void DropTrigger(this SqlTransaction tran, string triggerName)
+        public static void DropTrigger(this SqlTransaction tran, SqlObjectName triggerName)
         {
-            tran.ExecuteNonQuery($"DROP TRIGGER [{triggerName}]");
+            tran.ExecuteNonQuery($"DROP TRIGGER {triggerName}");
         }
 
-        private static void CreateTrigger(this SqlTransaction tran, string triggerResource, string triggerName, string tableName, string dialogHandle, string messageType)
+        private static void CreateTrigger(this SqlTransaction tran, string triggerResource, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
         {
             var script = LoadScript(triggerResource);
             script = script.Replace("{triggerName}", triggerName);
+            script = script.Replace("{tableName.Schema}", tableName.Schema);
+            script = script.Replace("{tableName.Name}", tableName.Name);
             script = script.Replace("{tableName}", tableName);
             script = script.Replace("{dialogHandle}", dialogHandle);
             script = script.Replace("{messageType}", messageType);
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateMessageType(this SqlTransaction tran, string messageTypeName)
+        public static void CreateMessageType(this SqlTransaction tran, SqlSchemalessObjectName messageTypeName)
         {
             var script = LoadScript("CreateMessageType");
+            script = script.Replace("{messageTypeName.Name}", messageTypeName.Name);
             script = script.Replace("{messageTypeName}", messageTypeName);
             tran.ExecuteNonQuery(script);
         }
 
-        public static void DropMessageType(this SqlTransaction tran, string messageTypeName)
+        public static void DropMessageType(this SqlTransaction tran, SqlSchemalessObjectName messageTypeName)
         {
-            tran.ExecuteNonQuery($"DROP MESSAGE TYPE [{messageTypeName}]");
+            tran.ExecuteNonQuery($"DROP MESSAGE TYPE {messageTypeName}");
         }
 
-        public static void DropContract(this SqlTransaction tran, string contract)
+        public static void DropContract(this SqlTransaction tran, SqlSchemalessObjectName contract)
         {
-            tran.ExecuteNonQuery($"DROP CONTRACT [{contract}]");
+            tran.ExecuteNonQuery($"DROP CONTRACT {contract}");
         }
         
-        public static void DropService(this SqlTransaction tran, string serviceName)
+        public static void DropService(this SqlTransaction tran, SqlSchemalessObjectName serviceName)
         {
-            tran.ExecuteNonQuery($"DROP SERVICE [{serviceName}]");
+            tran.ExecuteNonQuery($"DROP SERVICE {serviceName}");
         }
 
-        public static void DropQueue(this SqlTransaction tran, string queueName)
+        public static void DropQueue(this SqlTransaction tran, SqlObjectName queueName)
         {
-            tran.ExecuteNonQuery($"DROP QUEUE [{queueName}]");
+            tran.ExecuteNonQuery($"DROP QUEUE {queueName}");
         }
 
         public static void EndConversation(this SqlTransaction tran, Guid conversation)
@@ -289,10 +332,12 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery($"DECLARE @dialog_handle UNIQUEIDENTIFIER = '{conversation}';{Environment.NewLine}END CONVERSATION @dialog_handle WITH CLEANUP;");
         }
 
-        public static Guid GetConversation(this SqlTransaction tran, string senderServiceName, string recieverServiceName, string contractName)
+        public static Guid GetConversation(this SqlTransaction tran, SqlSchemalessObjectName senderServiceName, SqlSchemalessObjectName recieverServiceName, SqlSchemalessObjectName contractName)
         {
             var script = LoadScript("GetConversation");
+            script = script.Replace("{recieverServiceName.Name}", recieverServiceName.Name);
             script = script.Replace("{recieverServiceName}", recieverServiceName);
+            script = script.Replace("{senderServiceName.Name}", senderServiceName.Name);
             script = script.Replace("{senderServiceName}", senderServiceName);
             script = script.Replace("{contractName}", contractName);
             using (var command = tran.Connection.CreateCommand())
