@@ -59,7 +59,7 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
         /// <param name="query">Function that queries Linq to Sql</param>
         /// <param name="keySelector">Function to extract the key from from <typeparamref name="TResult"/></param>
         /// <returns>The query created</returns>
-        public async Task<TypedUserQuery<TResult,TKey>> Query<TResult,TKey>(Func<T, IQueryable<TResult>> query, Expression<Func<TResult,TKey>> keySelector)
+        public async Task<TableCachedQuery<TResult,TKey>> Query<TResult,TKey>(Func<T, IQueryable<TResult>> query, Expression<Func<TResult,TKey>> keySelector)
         {
             return await Task.Run(() =>
             {
@@ -83,7 +83,7 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
                         text = text.Replace(name, ToInlineValue(parameter));
                     }
 
-                    var userQuery = new TypedUserQuery<TResult, TKey>(mapperFunc, keySelector.Compile(), text,
+                    var userQuery = new TableCachedQuery<TResult, TKey>(mapperFunc, keySelector.Compile(), text,
                         primaries.First(), primaries.Skip(1).ToArray());
                     userQuery.SetCustomQuery(_db.CustomQuery(userQuery));
                     return userQuery;

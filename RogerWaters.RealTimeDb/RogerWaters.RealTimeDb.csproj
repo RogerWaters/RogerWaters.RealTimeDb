@@ -55,7 +55,7 @@
     <Compile Include="Linq2Sql\DisposeBehavior.cs" />
     <Compile Include="Linq2Sql\RealtimeDbDataContext.cs" />
     <Compile Include="Linq2Sql\KeyVisitor.cs" />
-    <Compile Include="Linq2Sql\TypedUserQuery.cs" />
+    <Compile Include="Linq2Sql\TableCachedQuery.cs" />
     <Compile Include="ReducableDictionary.cs" />
     <Compile Include="RowChangeKind.cs" />
     <Compile Include="SqlObjects\SchemaObject.cs" />

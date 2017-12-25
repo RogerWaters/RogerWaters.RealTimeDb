@@ -8,12 +8,23 @@ using System.Xml.Linq;
 namespace RogerWaters.RealTimeDb.SqlObjects
 {
     /// <summary>
-    /// 
+    /// Represents a db that is prepared for synchhronization
     /// </summary>
     internal sealed class Database : SchemaObject, IDisposable
     {
+        /// <summary>
+        /// The configuration the db is initialized with
+        /// </summary>
         internal DatabaseConfig Config { get; }
+
+        /// <summary>
+        /// The name of the contract used for message exchange
+        /// </summary>
         public SqlSchemalessObjectName ContractName { get; }
+
+        /// <summary>
+        /// 
+        /// </summary>
         public SqlSchemalessObjectName MessageTypeName { get; }
 
         public Guid Conversation { get; }

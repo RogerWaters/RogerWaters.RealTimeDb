@@ -7,6 +7,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogerWaters.RealTimeDb", "R
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RogerWaters.RealTimeDb.TestClient", "RogerWaters.RealTimeDb.TestClient\RogerWaters.RealTimeDb.TestClient.csproj", "{5DEB3E2C-C609-49C4-9C6B-B914FD9FBE3D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D4C9F55A-2AEF-4C14-9418-12D7E1587375}"
+	ProjectSection(SolutionItems) = preProject
+		readme.md = readme.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
