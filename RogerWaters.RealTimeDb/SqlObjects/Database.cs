@@ -2,155 +2,107 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Xml.Linq;
+using RogerWaters.RealTimeDb.Configuration;
+using RogerWaters.RealTimeDb.SqlObjects.Queries;
 
 namespace RogerWaters.RealTimeDb.SqlObjects
 {
     /// <summary>
-    /// Represents a db that is prepared for synchhronization
+    /// Represents a db that is prepared for synchronization
     /// </summary>
     internal sealed class Database : SchemaObject, IDisposable
     {
         /// <summary>
         /// The configuration the db is initialized with
         /// </summary>
-        internal DatabaseConfig Config { get; }
+        public DatabaseConfig Config { get; }
 
         /// <summary>
-        /// The name of the contract used for message exchange
+        /// The handle to transmit messages from Sql-Server to <see cref="Database"/>
         /// </summary>
-        public SqlSchemalessObjectName ContractName { get; }
+        public Guid ConversationHandle => _messageTransmitter.ConversationHandle;
 
         /// <summary>
-        /// 
+        /// Tables currently observed
         /// </summary>
-        public SqlSchemalessObjectName MessageTypeName { get; }
+        private readonly ReferenceSourceCollcetion<SqlObjectName, TableObserver> _tables = new ReferenceSourceCollcetion<SqlObjectName, TableObserver>();
 
-        public Guid Conversation { get; }
+        /// <summary>
+        /// Views currently observed
+        /// </summary>
+        private readonly ReferenceSourceCollcetion<SqlObjectName, ViewObserver> _views = new ReferenceSourceCollcetion<SqlObjectName, ViewObserver>();
 
-        public SqlSchemalessObjectName ReceiverServiceName { get; }
+        /// <summary>
+        /// Custom queries currently active
+        /// </summary>
+        private readonly ConcurrentDictionary<Guid,  QueryObserver> _customQueries = new ConcurrentDictionary<Guid,  QueryObserver>();
 
-        public SqlSchemalessObjectName SenderServiceName { get; }
-
-        public SqlObjectName ReceiverQueueName { get; }
-
-        public SqlObjectName SenderQueueName { get; }
-
-        private readonly ConcurrentDictionary<SqlObjectName, Table> _tables = new ConcurrentDictionary<SqlObjectName, Table>();
-        private readonly ConcurrentDictionary<SqlObjectName, View> _views = new ConcurrentDictionary<SqlObjectName, View>();
-        private readonly List<CustomQuery> _customQueries = new List<CustomQuery>();
-
-        private readonly Thread _messageReader;
+        /// <summary>
+        /// simple check to reduce dispose overhead
+        /// </summary>
         private volatile bool _disposed = false;
-        
+
+        /// <summary>
+        /// Transmitter that receives messages from the queue
+        /// </summary>
+        private readonly MessageTransmitter _messageTransmitter;
+
+        /// <summary>
+        /// Initialize a new instance of <see cref="Database"/>
+        /// </summary>
+        /// <param name="config">The configuration to setup database</param>
         public Database(DatabaseConfig config)
         {
             Config = config;
-            MessageTypeName = config.MessageTypeName;
-            ContractName = config.ContractName;
-            SenderQueueName = Config.SenderQueueNameTemplate;
-            ReceiverQueueName = Config.ReceiverQueueNameTemplate;
-            SenderServiceName = Config.SenderServiceNameTemplate;
-            ReceiverServiceName = Config.ReceiverServiceNameTemplate;
-
-            Guid conversation = Guid.Empty;
-
+            
             config.DatabaseConnectionString.EnableBroker();
 
-            config.DatabaseConnectionString.WithConnection(con =>
+            _messageTransmitter = new MessageTransmitter(this);
+            _messageTransmitter.MessageRecieved += OnMessageRecieved;
+        }
+
+        /// <summary>
+        /// Executed if message is received from Sql-Server
+        /// </summary>
+        /// <param name="root">The message in valid XML form</param>
+        private void OnMessageRecieved(XElement root)
+        {
+            if (_tables.TryCreateReference(root.Name.LocalName, out var reference))
             {
-                using (var transaction = con.BeginTransaction())
+                var entry = root.Elements().FirstOrDefault();
+                if (entry != null)
                 {
-                    transaction.CreateMessageType(MessageTypeName);
-                    transaction.CreateContract(ContractName, MessageTypeName);
-                    transaction.CreateQueue(SenderQueueName);
-                    transaction.CreateQueue(ReceiverQueueName);
-                    transaction.CreateService(SenderServiceName, SenderQueueName, config.ContractName);
-                    transaction.CreateService(ReceiverServiceName, ReceiverQueueName, config.ContractName);
-                    conversation = transaction.GetConversation(SenderServiceName, ReceiverServiceName, config.ContractName);
-                    transaction.Commit();
+                    reference.Value.OnReceive(entry);
                 }
-            });
-            Conversation = conversation;
-            _messageReader = new Thread(StartListen);
-            _messageReader.Start();
-        }
-
-        private void StartListen()
-        {
-            while (true)
-            {
-                foreach (var message in Config.DatabaseConnectionString.ReceiveMessages(ReceiverQueueName, TimeSpan.FromSeconds(5)))
-                {
-                    var root = XElement.Parse(message);
-                    if (_tables.TryGetValue(root.Name.LocalName,out Table t))
-                    {
-                        var entry = root.Elements().FirstOrDefault();
-                        if (entry != null)
-                        {
-                            t.OnReceive(entry);
-                        }
-                    }
-                }
+                reference.Dispose();
             }
         }
 
-        internal CustomQuery CustomQuery(UserQuery query)
+        internal SqlCachedQuery CustomQuery(string query, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
-            return new CustomQuery(this, query);
+            var customQuery = new SqlCachedQuery(this, query, primaryKeyColumn, additionalPrimaryKeyColumns);
+            _customQueries.TryAdd(customQuery.Guid, customQuery);
+            return customQuery;
         }
 
-        internal void AddTable(Table table)
+        internal MappedSqlCachedQuery<TRow, TKey> CustomQuery<TRow, TKey>(string query, Func<Row, TRow> rowFactory,
+            Func<TRow, TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory,
+            string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
-            if (!_tables.TryAdd(table.SqlObjectName,table))
-            {
-                throw new InvalidOperationException($"Table with Name {table.SqlObjectName} already in Collection");
-            }
+            var customQuery = new MappedSqlCachedQuery<TRow,TKey>(this, query, rowFactory, keyExtractor, keyComparerFactory, primaryKeyColumn, additionalPrimaryKeyColumns);
+            _customQueries.TryAdd(customQuery.Guid, customQuery);
+            return customQuery;
+        }
+        
+        public IReference<TableObserver> GetOrAddTable(SqlObjectName sqlObjectName)
+        {
+            return _tables.GetOrCreate(sqlObjectName, t => new TableObserver(this, sqlObjectName));
         }
 
-        internal void AddView(View view)
+        public IReference<ViewObserver> GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
         {
-            if (!_views.TryAdd(view.ViewName, view))
-            {
-                throw new InvalidOperationException($"View with Name {view.ViewName} already in Collection");
-            }
-        }
-
-        internal void AddCustomQuery(CustomQuery query)
-        {
-            _customQueries.Add(query);
-        }
-
-        internal void RemoveCustomQuery(CustomQuery query)
-        {
-            _customQueries.Remove(query);
-        }
-
-        internal void RemoveTable(Table table)
-        {
-            if (_tables.TryRemove(table.SqlObjectName, out Table t))
-            {
-                
-            }
-        }
-
-        internal void RemoveView(View view)
-        {
-            if (_views.TryRemove(view.ViewName, out View v))
-            {
-
-            }
-        }
-
-        public Table GetOrAddTable(SqlObjectName sqlObjectName)
-        {
-            return _tables.GetOrAdd(sqlObjectName, t => new Table(this, sqlObjectName));
-        }
-
-        public View GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
-        {
-            return _views.GetOrAdd(viewName, v => new View(this, viewName, primaryKeyColumn, primaryKeyColumns));
+            return _views.GetOrCreate(viewName, v => new ViewObserver(this, viewName, primaryKeyColumn, primaryKeyColumns));
         }
 
         public void Dispose()
@@ -158,9 +110,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             if (_disposed == false)
             {
                 _disposed = true;
-                _messageReader.Abort();
-                _messageReader.Join();
-                _customQueries.ForEach(q => q.Dispose());
+                _messageTransmitter.Dispose();
             }
         }
 
@@ -172,35 +122,11 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             _customQueries.Clear();
             foreach (var query in queries)
             {
-                query.CleanupSchemaChanges();
-            }
-            var views = _views.ToArray();
-            _views.Clear();
-            foreach (var view in views)
-            {
-                view.Value.CleanupSchemaChanges();
-            }
-            var tables = _tables.ToArray();
-            _tables.Clear();
-            foreach (var table in tables)
-            {
-                table.Value.CleanupSchemaChanges();
+                query.Value.Dispose();
             }
 
-            Config.DatabaseConnectionString.WithConnection(con =>
-            {
-                using (var transaction = con.BeginTransaction())
-                {
-                    transaction.EndConversation(Conversation);
-                    transaction.DropService(SenderServiceName);
-                    transaction.DropService(ReceiverServiceName);
-                    transaction.DropQueue(SenderQueueName);
-                    transaction.DropQueue(ReceiverQueueName);
-                    transaction.DropContract(ContractName);
-                    transaction.DropMessageType(MessageTypeName);
-                    transaction.Commit();
-                }
-            });
+            _views.Dispose();
+            _tables.Dispose();
         }
     }
 }

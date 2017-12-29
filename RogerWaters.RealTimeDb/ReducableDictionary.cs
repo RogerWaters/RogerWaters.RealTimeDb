@@ -94,7 +94,7 @@ namespace RogerWaters.RealTimeDb
 
         public bool Contains(object key) => ((IDictionary) _store).Contains(key);
 
-        public void Add(object key, object value) => ((IDictionary) _store).Add(key, value);
+        void IDictionary.Add(object key, object value) => ((IDictionary) _store).Add(key, value);
 
         public void Clear()
         {

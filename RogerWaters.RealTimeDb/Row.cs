@@ -8,11 +8,11 @@ namespace RogerWaters.RealTimeDb
     public sealed class Row:IReadOnlyCollection<object>
     {
         private readonly object[] _data;
-        private readonly RowSchema _schema;
+        public readonly RowSchema Schema;
 
         public Row(RowSchema schema)
         {
-            _schema = schema;
+            Schema = schema;
             _data = new object[schema.ColumnCount];
         }
 
@@ -34,7 +34,7 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
-        public object[] Key => _schema.GetKey(this);
+        public object[] Key => Schema.GetKey(this);
 
         public IEnumerator<object> GetEnumerator()
         {

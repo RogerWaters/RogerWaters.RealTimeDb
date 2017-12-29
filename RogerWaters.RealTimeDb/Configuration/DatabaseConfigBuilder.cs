@@ -1,36 +1,36 @@
 ﻿using RogerWaters.RealTimeDb.SqlObjects;
 
-namespace RogerWaters.RealTimeDb
+namespace RogerWaters.RealTimeDb.Configuration
 {
     /// <summary>
-    /// Configuration to setup all values for observer
+    /// Builder to setup all settings configurable for database
     /// </summary>
-    public sealed class DatabaseConfig
+    public class DatabaseConfigBuilder
     {
         /// <summary>
         /// Connection string to database
         /// </summary>
-        public string DatabaseConnectionString { get; }
+        public string ConnectionString { get; }
 
         /// <summary>
         /// Template used to generate receiver queue name
         /// </summary>
-        public SqlObjectName ReceiverQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Receiver";
+        public SqlObjectName ReceiverQueueName { get; set; } = "tcp://RogerWaters/RealTimeDb/Receiver";
 
         /// <summary>
         /// Template used to generate sender queue name
         /// </summary>
-        public SqlObjectName SenderQueueNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/Sender";
+        public SqlObjectName SenderQueueName { get; set; } = "tcp://RogerWaters/RealTimeDb/Sender";
 
         /// <summary>
         /// Template used to generate receiver service name
         /// </summary>
-        public SqlSchemalessObjectName ReceiverServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/ReceiverService";
+        public SqlSchemalessObjectName ReceiverServiceName { get; set; } = "tcp://RogerWaters/RealTimeDb/ReceiverService";
 
         /// <summary>
         /// Template used to generate sender service name
         /// </summary>
-        public SqlSchemalessObjectName SenderServiceNameTemplate { get; set; } = "tcp://RogerWaters/RealTimeDb/SenderService";
+        public SqlSchemalessObjectName SenderServiceName { get; set; } = "tcp://RogerWaters/RealTimeDb/SenderService";
 
         /// <summary>
         /// Name that will be used as the message type
@@ -68,14 +68,33 @@ namespace RogerWaters.RealTimeDb
         /// 1: name of the view
         /// </remarks>
         public SqlObjectName ViewCacheTableNameTemplate { get; set; } = "{0}.tmp_RDB_{1}";
-        
+
+        /// <summary>
+        /// If not null use memory tables for view and query caches
+        /// </summary>
+        public string MemoryTableStoragePath { get; set; } = null;
+
+        /// <summary>
+        /// If views and triggers will be compiled with sql native
+        /// </summary>
+        public bool CompileObjects { get; set; } = true;
+
         /// <summary>
         /// Creates a new Configuration
         /// </summary>
         /// <param name="connectionString">The connection used to connect to SqlServer</param>
-        public DatabaseConfig(string connectionString)
+        public DatabaseConfigBuilder(string connectionString)
         {
-            DatabaseConnectionString = connectionString;
+            ConnectionString = connectionString;
+        }
+
+        /// <summary>
+        /// Build the configuration from the current state
+        /// </summary>
+        /// <returns></returns>
+        public DatabaseConfig Build()
+        {
+            return new DatabaseConfig(this);
         }
     }
 }

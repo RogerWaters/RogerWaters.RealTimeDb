@@ -19,7 +19,7 @@ namespace RogerWaters.RealTimeDb.TestClient
 
         public static void DoWithDb()
         {
-            using (var context = new RealtimeDbDataContext<SomeDbDataContext>(() => new SomeDbDataContext()))
+            using (var context = new RealtimeDbDataContextBuilder<SomeDbDataContext>(() => new SomeDbDataContext()).Build())
             {
                 var queries =
                     Enumerable.Range(0, 100).AsParallel().Select(i => context.Query
@@ -53,7 +53,7 @@ namespace RogerWaters.RealTimeDb.TestClient
 
         public static void DoWithDbStressTest()
         {
-            using (var context = new RealtimeDbDataContext<TPCCDataContext>(() => new TPCCDataContext()))
+            using (var context = new RealtimeDbDataContextBuilder<TPCCDataContext>(() => new TPCCDataContext()).Build())
             {
                 Console.ReadLine();
                 context.DisposeBehavior = DisposeBehavior.CleanupSchema;

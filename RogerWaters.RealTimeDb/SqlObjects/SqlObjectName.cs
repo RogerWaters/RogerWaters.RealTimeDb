@@ -2,14 +2,31 @@
 
 namespace RogerWaters.RealTimeDb.SqlObjects
 {
-    public sealed class SqlObjectName:IEquatable<SqlObjectName>
+    /// <summary>
+    /// Represents the name of an Sql-Object that is defined by schema and name
+    /// </summary>
+    public sealed class SqlObjectName : IEquatable<SqlObjectName>
     {
+        /// <summary>
+        /// The name of the object without schema
+        /// </summary>
         public string Name { get; }
+
+        /// <summary>
+        /// The schema of the object
+        /// </summary>
         public string Schema { get; }
 
+        /// <summary>
+        /// Initialize a new instance of <see cref="SqlObjectName"/>
+        /// </summary>
+        /// <param name="name">The name of the object without schema</param>
+        /// <param name="schema">The schema of the object</param>
         public SqlObjectName(string name, string schema = null)
         {
-            Schema = schema ?? "dbo";
+            const string defaultSchema = "dbo";
+
+            Schema = schema ?? defaultSchema;
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Name = name.Trim('[', ']');
             Schema = Schema.Trim('[', ']');
@@ -42,20 +59,34 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             throw new ArgumentException("TableName is invalid", nameof(objectText));
         }
 
+        /// <summary>
+        /// Parse the <see cref="SqlObjectName"/> from string
+        /// </summary>
+        /// <param name="value">The string that will be converted to <see cref="SqlObjectName"/></param>
         public static implicit operator SqlObjectName(string value)
         {
             return Parse(value);
         }
+
+        /// <summary>
+        /// Convert the <paramref name="value"/> to it's string representation
+        /// </summary>
+        /// <param name="value"></param>
         public static implicit operator string(SqlObjectName value)
         {
             return value.ToString();
         }
 
+        /// <summary>
+        /// Format the current instance as [{Schema}].[{Name}]
+        /// </summary>
+        /// <returns>The formatted string</returns>
         public override string ToString()
         {
             return $"[{Schema}].[{Name}]";
         }
 
+        /// <inheritdoc />
         public bool Equals(SqlObjectName other)
         {
             if (ReferenceEquals(null, other)) return false;
@@ -63,6 +94,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             return string.Equals(Name, other.Name) && string.Equals(Schema, other.Schema);
         }
 
+        /// <inheritdoc />
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj)) return false;
@@ -70,6 +102,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             return obj is SqlObjectName name && Equals(name);
         }
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             unchecked
@@ -78,11 +111,23 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             }
         }
 
+        /// <summary>
+        /// Abbreviation for <see cref="Equals(SqlObjectName)"/>
+        /// </summary>
+        /// <param name="left">The left part of comparison</param>
+        /// <param name="right">The right part of comparison</param>
+        /// <returns>true if both sides are equal</returns>
         public static bool operator ==(SqlObjectName left, SqlObjectName right)
         {
             return Equals(left, right);
         }
-
+        
+        /// <summary>
+        /// Abbreviation for <see cref="Equals(SqlObjectName)"/> == false
+        /// </summary>
+        /// <param name="left">The left part of comparison</param>
+        /// <param name="right">The right part of comparison</param>
+        /// <returns>true if both sides are not equal</returns>
         public static bool operator !=(SqlObjectName left, SqlObjectName right)
         {
             return !Equals(left, right);

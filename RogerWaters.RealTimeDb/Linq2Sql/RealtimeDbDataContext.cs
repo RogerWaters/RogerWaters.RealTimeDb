@@ -1,15 +1,14 @@
 ﻿using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Data.Linq;
-using System.Data.Linq.SqlClient;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading.Tasks;
+using RogerWaters.RealTimeDb.Configuration;
 using RogerWaters.RealTimeDb.SqlObjects;
+using RogerWaters.RealTimeDb.SqlObjects.Queries;
 
 namespace RogerWaters.RealTimeDb.Linq2Sql
 {
@@ -19,31 +18,28 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
     /// <typeparam name="T">Type of Linq DataContext</typeparam>
     public sealed class RealtimeDbDataContext<T> : IDisposable where T: DataContext
     {
-        /// <summary>
-        /// Function to generate a preconfigured context
-        /// </summary>
-        private readonly Func<T> _contextFactory;
-
+        private readonly RealtimeDbDataContextBuilder<T> _contextConfiguration;
+        
         /// <summary>
         /// Get or Set the behavior how Dispose is applied to the database
         /// </summary>
         public DisposeBehavior DisposeBehavior { get; set; } = DisposeBehavior.CleanupSchema;
 
+        public DatabaseConfig DatabaseConfig { get; }
+
         /// <summary>
         /// The internal database that controls the realtime objects
         /// </summary>
         private readonly Database _db;
-
-        /// <summary>
-        /// Create a new instance <see cref="RealtimeDbDataContext{T}"/>
-        /// </summary>
-        /// <param name="contextFactory">Function to generate a preconfigured context</param>
-        public RealtimeDbDataContext(Func<T> contextFactory)
+        
+        public RealtimeDbDataContext(RealtimeDbDataContextBuilder<T> contextConfiguration)
         {
-            _contextFactory = contextFactory;
-            using (var context = contextFactory())
+            _contextConfiguration = contextConfiguration;
+            DatabaseConfig = ((DatabaseConfigBuilder) contextConfiguration).Build();
+            
+            using (var context = contextConfiguration.ContextFactory())
             {
-                _db = new Database(new DatabaseConfig(context.Connection.ConnectionString));
+                _db = new Database(((DatabaseConfigBuilder) contextConfiguration).Build());
                 foreach (var table in context.Mapping.GetTables())
                 {
                     _db.GetOrAddTable(table.TableName);
@@ -59,14 +55,13 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
         /// <param name="query">Function that queries Linq to Sql</param>
         /// <param name="keySelector">Function to extract the key from from <typeparamref name="TResult"/></param>
         /// <returns>The query created</returns>
-        public async Task<TableCachedQuery<TResult,TKey>> Query<TResult,TKey>(Func<T, IQueryable<TResult>> query, Expression<Func<TResult,TKey>> keySelector)
+        public async Task<MappedSqlCachedQuery<TResult,TKey>> Query<TResult,TKey>(Func<T, IQueryable<TResult>> query, Expression<Func<TResult,TKey>> keySelector)
         {
             return await Task.Run(() =>
             {
-                using (var context = _contextFactory())
+                using (var context = _contextConfiguration.ContextFactory())
                 {
                     var queryable = query(context);
-                    var mapperFunc = BuildMapperFunc(context, queryable);
 
                     var primaries = keySelector.GetMembers();
 
@@ -82,52 +77,36 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
 
                         text = text.Replace(name, ToInlineValue(parameter));
                     }
+                    
+                    Func<Row, TResult> mapper = null;
+                    return _db.CustomQuery
+                    (
+                        text,
+                        r =>
+                        {
+                            if (mapper == null)
+                            {
+                                var rowParam = Expression.Parameter(typeof(Row));
 
-                    var userQuery = new TableCachedQuery<TResult, TKey>(mapperFunc, keySelector.Compile(), text,
-                        primaries.First(), primaries.Skip(1).ToArray());
-                    userQuery.SetCustomQuery(_db.CustomQuery(userQuery));
-                    return userQuery;
+                                var @new = Expression.New(typeof(TResult).GetConstructors().First(),
+                                    r.Schema.ColumnTypes.Select
+                                    (
+                                        kvp => Expression.Convert(
+                                            Expression.Property(rowParam, "Item", Expression.Constant(kvp.Key)),
+                                            kvp.Value)
+                                    ));
+                                mapper = Expression.Lambda<Func<Row, TResult>>(@new, rowParam).Compile();
+                            }
+
+                            return mapper(r);
+                        },
+                        keySelector.Compile(),
+                        s => EqualityComparer<TKey>.Default,
+                        primaries.First(),
+                        primaries.Skip(1).ToArray()
+                    );
                 }
             });
-        }
-
-        /// <summary>
-        /// Extracts the function that Linq2Sql use to map the initial result
-        /// </summary>
-        /// <typeparam name="TResult">Type of the rows</typeparam>
-        /// <param name="context">The linq context of type <typeparamref name="T"/></param>
-        /// <param name="queryable">The Queryable that already has all Expressions applied</param>
-        /// <returns>The function that maps the result to the reader</returns>
-        private Func<DbDataReader, IEnumerator> BuildMapperFunc<TResult>(T context, IQueryable<TResult> queryable)
-        {
-            var providerProperty = typeof(T).GetProperty("Provider", BindingFlags.Instance | BindingFlags.NonPublic);
-            var sqlProvider = providerProperty.GetValue(context) as SqlProvider;
-            var methods = sqlProvider.GetType().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
-
-            var compileMethod = methods.First(m => m.Name == "System.Data.Linq.Provider.IProvider.Compile");
-            var compiledQuery = compileMethod.Invoke(sqlProvider, new object[] {queryable.Expression});
-
-            var factoryField = compiledQuery.GetType().GetField("factory", BindingFlags.Instance | BindingFlags.NonPublic);
-            var subQueriesField = compiledQuery.GetType().GetField("subQueries", BindingFlags.Instance | BindingFlags.NonPublic);
-            var factory = factoryField.GetValue(compiledQuery);
-            var subQueries = subQueriesField.GetValue(compiledQuery);
-
-            var createMethod = factory.GetType().GetMethod("Create");
-
-            var reader = Expression.Parameter(typeof(DbDataReader));
-            var body = Expression.Call
-            (
-                Expression.Constant(factory, factory.GetType()),
-                createMethod,
-                reader,
-                Expression.Constant(false),
-                Expression.Constant(sqlProvider),
-                Expression.Constant(null, typeof(object[])),
-                Expression.Constant(null, typeof(object[])),
-                Expression.Constant(subQueries)
-            );
-            var mapperFunc = Expression.Lambda<Func<DbDataReader, IEnumerator>>(body, reader).Compile();
-            return mapperFunc;
         }
 
         /// <summary>

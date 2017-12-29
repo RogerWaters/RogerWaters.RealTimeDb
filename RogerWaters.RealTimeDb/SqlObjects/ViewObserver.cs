@@ -2,18 +2,18 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using RogerWaters.RealTimeDb.Configuration;
 using RogerWaters.RealTimeDb.EventArgs;
 
 namespace RogerWaters.RealTimeDb.SqlObjects
 {
-    internal sealed class View : SchemaObject, IDisposable
+    internal sealed class ViewObserver : SchemaObject, IDisposable
     {
         public SqlObjectName ViewName { get; }
-        internal bool Hidden { get; set; }
 
-        private List<Table> Dependencies { get; }
+        private List<IReference<TableObserver>> Dependencies { get; }
         public SqlObjectName CacheTableName { get; }
-        internal Table CacheTable { get; }
+        internal IReference<TableObserver> CacheTable { get; }
         private readonly Database _db;
         private readonly string[] _keyColumns;
 
@@ -22,7 +22,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         private readonly AutoResetEvent _mergeEvent = new AutoResetEvent(false);
         private readonly Thread _mergeThread;
 
-        public View(Database db, SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
+        public ViewObserver(Database db, SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
         {
             primaryKeyColumns = primaryKeyColumns ?? new string[0];
             primaryKeyColumns = new[] {primaryKeyColumn}.Union(primaryKeyColumns).ToArray();
@@ -80,11 +80,11 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             return result;
         }
 
-        private Thread SetupDependencyEvent(List<Table> dependingTables)
+        private Thread SetupDependencyEvent(List<IReference<TableObserver>> dependingTables)
         {
             foreach (var dependency in dependingTables)
             {
-                dependency.OnTableDataChanged += OnDependencyChanged;
+                dependency.Value.OnTableDataChanged += OnDependencyChanged;
             }
 
             return new Thread(RefreshViewCache) { IsBackground = true };
@@ -95,11 +95,10 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             _mergeEvent.Set();
         }
 
-        private Table SetupCacheTable(Database db, string cacheTableName)
+        private IReference<TableObserver> SetupCacheTable(Database db, string cacheTableName)
         {
             var table = db.GetOrAddTable(cacheTableName);
-            table.Hidden = true;
-            table.OnTableDataChanged += _table_OnTableDataChanged;
+            table.Value.OnTableDataChanged += _table_OnTableDataChanged;
             return table;
         }
 
@@ -112,7 +111,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         private void RefreshViewCache()
         {
             List<string> valueColumns = new List<string>();
-            foreach (var columnName in CacheTable.Schema.ColumnNamesLookup.Keys)
+            foreach (var columnName in CacheTable.Value.Schema.ColumnNamesLookup.Keys)
             {
                 if (_keyColumns.Contains(columnName) == false)
                 {
@@ -130,7 +129,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
         public void Dispose()
         {
-            Dependencies.ForEach(t => t.OnTableDataChanged -= OnDependencyChanged);
+            Dependencies.ForEach(t => t.Value.OnTableDataChanged -= OnDependencyChanged);
             _mergeThread.Abort();
             _mergeThread.Join();
         }
@@ -138,8 +137,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         public override void CleanupSchemaChanges()
         {
             Dispose();
-            _db.RemoveTable(CacheTable);
-            CacheTable.CleanupSchemaChanges();
+            CacheTable.Dispose();
+
             _db.Config.DatabaseConnectionString.WithConnection(con =>
             {
                 using (var command = con.CreateCommand())
