@@ -19,10 +19,13 @@ namespace RogerWaters.RealTimeDb.TestClient
 
         public static void DoWithDb()
         {
-            using (var context = new RealtimeDbDataContextBuilder<SomeDbDataContext>(() => new SomeDbDataContext()).Build())
+            using (
+            var context = new RealtimeDbDataContextBuilder<SomeDbDataContext>(() => new SomeDbDataContext()).Build()
+            )
             {
+                Console.WriteLine(DateTime.Now.TimeOfDay);
                 var queries =
-                    Enumerable.Range(0, 100).AsParallel().Select(i => context.Query
+                    Enumerable.Range(0, 1000).AsParallel().Select(i => context.Query
                     (
                         c =>
                             from m in c.MyTable
@@ -42,12 +45,10 @@ namespace RogerWaters.RealTimeDb.TestClient
                             r.MyTable2_id
                         }
                     )).ToArray();
-
+                Console.WriteLine("Queries applied");
                 Console.ReadLine();
-                foreach (var query in queries)
-                {
-                    query.Result.Dispose();
-                }
+                queries.AsParallel().ForAll(q => q.Result.Dispose());
+                Console.WriteLine("Queries disposed");
             }
         }
 

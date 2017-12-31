@@ -20,12 +20,16 @@ namespace RogerWaters.RealTimeDb
         public IEqualityComparer<Row> RowEqualityComparer { get; }
         public IEqualityComparer<object[]> RowKeyEqualityComparer { get; }
 
-        public RowSchema(string connectionString, SqlObjectName tableName)
+        public RowSchema(string connectionString, SqlObjectName tableName):this(connectionString,tableName,null)
+        {
+        }
+
+        public RowSchema(string connectionString, SqlObjectName tableName, string[] primaryKeyColumns)
         {
             _connectionString = connectionString;
             _tableName = tableName;
             _columns = GetTableColumns(connectionString,tableName);
-            PrimaryKeyColumns = connectionString.GetPrimaryKeyColumns(tableName).ToDictionary(c => c, c => ColumnNamesLookup[c]);
+            PrimaryKeyColumns = (primaryKeyColumns ?? connectionString.GetPrimaryKeyColumns(tableName)).ToDictionary(c => c, c => ColumnNamesLookup[c]);
             RowEqualityComparer = new RowComparer();
             RowKeyEqualityComparer = new RowKeyComparer();
         }

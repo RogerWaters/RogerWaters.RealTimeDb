@@ -4,7 +4,7 @@ BEGIN
 END
 EXEC dbo.sp_executesql @statement = N'
 	CREATE TRIGGER {triggerName}
-	ON {tableName}
+	ON {tableName} {with}
 	FOR DELETE
 	AS
 	BEGIN

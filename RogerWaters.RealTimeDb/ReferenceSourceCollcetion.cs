@@ -54,6 +54,7 @@ namespace RogerWaters.RealTimeDb
                 {
                     source.Dispose();
                 }
+                _sources.Clear();
             }
         }
     }

@@ -4,9 +4,9 @@ BEGIN
 END
 EXEC dbo.sp_executesql @statement = N'
 	CREATE TRIGGER {triggerName}
-	ON {tableName}
+	ON {tableName} {with}
 	FOR UPDATE
-	AS
+	AS {as}
 	BEGIN
 		DECLARE @dialogHandle UNIQUEIDENTIFIER = ''{dialogHandle}''
 		DECLARE @message NVARCHAR(MAX) = CAST

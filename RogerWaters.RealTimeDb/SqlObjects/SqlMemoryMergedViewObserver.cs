@@ -7,12 +7,19 @@ using RogerWaters.RealTimeDb.EventArgs;
 
 namespace RogerWaters.RealTimeDb.SqlObjects
 {
-    internal sealed class ViewObserver : SchemaObject, IDisposable
+    //TODO: Merge with insert update delete in seperate resultsets
+    //TODO: Query changes direct and do not use Trigger
+    //TODO: Change SqlMergedViewObserver to not use trigger probably
+    //TODO: - Ether use merge output (will be more efficient)
+    //TODO: - Or use same insert update delete queries from here
+    //TODO: Allow TableObserver to support memory optimized table... 
+    //TODO: - Probably insert changes into Dummy table and use insteadof trigger to redirect messages to queue
+    //TODO: After this changes probably it's completely unimportent what changes in table and we can simply observe if any change occurs?
+    internal class SqlMemoryMergedViewObserver : IDisposable
     {
         public SqlObjectName ViewName { get; }
-
-        private List<IReference<TableObserver>> Dependencies { get; }
         public SqlObjectName CacheTableName { get; }
+
         internal IReference<TableObserver> CacheTable { get; }
         private readonly Database _db;
         private readonly string[] _keyColumns;
@@ -20,9 +27,10 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         public event EventHandler<TableDataChangedEventArgs> OnTableDataChanged;
 
         private readonly AutoResetEvent _mergeEvent = new AutoResetEvent(false);
-        private readonly Thread _mergeThread;
 
-        public ViewObserver(Database db, SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
+        private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
+
+        public SqlMemoryMergedViewObserver(Database db, SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
         {
             primaryKeyColumns = primaryKeyColumns ?? new string[0];
             primaryKeyColumns = new[] {primaryKeyColumn}.Union(primaryKeyColumns).ToArray();
@@ -32,23 +40,32 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             ViewName = viewName;
             CacheTableName = string.Format(_db.Config.ViewCacheTableNameTemplate, viewName.Schema,viewName.Name);
 
-            Dependencies = LoadDependencies(db.Config, viewName).Select(db.GetOrAddTable).ToList();
+            var dependencies = LoadDependencies(db.Config, viewName).Select(db.GetOrAddTable).ToList();
             
-            db.Config.DatabaseConnectionString.WithConnection(con =>
+            db.Config.DatabaseConnectionString.CreateMemoryViewCache(viewName, CacheTableName,primaryKeyColumns);
+
+            var mergeThread = SetupDependencyEvent(dependencies);
+
+            CacheTable = SetupCacheTable(db, CacheTableName, primaryKeyColumns);
+            _disposeHelper.Attach(() =>
             {
-                using (var transaction = con.BeginTransaction())
+                mergeThread.Abort();
+                mergeThread.Join();
+            });
+            _disposeHelper.Attach(CacheTable);
+            _disposeHelper.Attach(() =>
+            {
+                _db.Config.DatabaseConnectionString.WithConnection(con =>
                 {
-                    transaction.CreateViewCache(viewName, CacheTableName);
-                    transaction.CreateViewCachePrimaryIndex(CacheTableName, primaryKeyColumns);
-                    transaction.Commit();
-                }
+                    using (var command = con.CreateCommand())
+                    {
+                        command.CommandText = $"DROP TABLE {CacheTableName}";
+                        command.ExecuteNonQuery();
+                    }
+                });
             });
 
-            _mergeThread = SetupDependencyEvent(Dependencies);
-
-            CacheTable = SetupCacheTable(db, CacheTableName);
-
-            _mergeThread.Start();
+            mergeThread.Start();
         }
 
         private List<SqlObjectName> LoadDependencies(DatabaseConfig config, SqlObjectName viewName)
@@ -85,6 +102,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             foreach (var dependency in dependingTables)
             {
                 dependency.Value.OnTableDataChanged += OnDependencyChanged;
+
+                _disposeHelper.Attach(() => dependency.Value.OnTableDataChanged -= OnDependencyChanged);
             }
 
             return new Thread(RefreshViewCache) { IsBackground = true };
@@ -95,9 +114,10 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             _mergeEvent.Set();
         }
 
-        private IReference<TableObserver> SetupCacheTable(Database db, string cacheTableName)
+        private IReference<TableObserver> SetupCacheTable(Database db, string cacheTableName,
+            string[] primaryKeyColumns)
         {
-            var table = db.GetOrAddTable(cacheTableName);
+            var table = db.GetOrAddTable(cacheTableName,primaryKeyColumns,true);
             table.Value.OnTableDataChanged += _table_OnTableDataChanged;
             return table;
         }
@@ -119,9 +139,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects
                 }
             }
 
-            while (true)
+            while (_mergeEvent.WaitOne())
             {
-                _mergeEvent.WaitOne();
                 _db.Config.DatabaseConnectionString.MergeViewChanges(CacheTableName,ViewName,_keyColumns,valueColumns.ToArray());
             }
             // ReSharper disable once FunctionNeverReturns
@@ -129,24 +148,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
         public void Dispose()
         {
-            Dependencies.ForEach(t => t.Value.OnTableDataChanged -= OnDependencyChanged);
-            _mergeThread.Abort();
-            _mergeThread.Join();
-        }
-
-        public override void CleanupSchemaChanges()
-        {
-            Dispose();
-            CacheTable.Dispose();
-
-            _db.Config.DatabaseConnectionString.WithConnection(con =>
-            {
-                using (var command = con.CreateCommand())
-                {
-                    command.CommandText = $"DROP TABLE {CacheTableName}";
-                    command.ExecuteNonQuery();
-                }
-            });
+            _disposeHelper.Dispose();
         }
     }
 }

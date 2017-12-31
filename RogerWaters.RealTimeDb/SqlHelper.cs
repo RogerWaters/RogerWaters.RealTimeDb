@@ -47,6 +47,16 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
+        public static int ExecuteNonQuery(this SqlConnection con, string query)
+        {
+            using (var command = con.CreateCommand())
+            {
+                command.CommandText = query;
+                command.CommandTimeout = 0;
+                return command.ExecuteNonQuery();
+            }
+        }
+
         public static void EnableBroker(this string connection)
         {
             var builder = new SqlConnectionStringBuilder(connection);
@@ -154,22 +164,26 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateViewCache(this SqlTransaction tran, SqlObjectName viewName, SqlObjectName cacheName)
+        public static void CreateViewCache(this SqlTransaction tran, SqlObjectName viewName, SqlObjectName cacheName, params string[] primaryColumns)
         {
             var script = LoadScript("CreateViewCache");
             script = script.Replace("{viewName}", viewName);
             script = script.Replace("{cacheName}", cacheName);
+            script = script.Replace("{cacheName.Schema}", cacheName.Schema);
+            script = script.Replace("{cacheName.Name}", cacheName.Name);
+            script = script.Replace("{primaryColumnList}", String.Join(", ",primaryColumns.Select(c => $"[{c}]")));
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateViewCachePrimaryIndex(this SqlTransaction tran, SqlObjectName cacheName, params string[] primaryColumns)
+        public static void CreateMemoryViewCache(this string connectionString, SqlObjectName viewName, SqlObjectName cacheName, params string[] primaryColumns)
         {
-            var script = LoadScript("CreateViewCachePrimaryIndex");
+            var script = LoadScript("CreateMemoryViewCache");
+            script = script.Replace("{viewName}", viewName);
+            script = script.Replace("{cacheName}", cacheName);
             script = script.Replace("{cacheName.Schema}", cacheName.Schema);
             script = script.Replace("{cacheName.Name}", cacheName.Name);
-            script = script.Replace("{cacheName}", cacheName);
             script = script.Replace("{primaryColumnList}", String.Join(", ",primaryColumns.Select(c => $"[{c}]")));
-            tran.ExecuteNonQuery(script);
+            connectionString.WithConnection(con => { con.ExecuteNonQuery(script); });
         }
 
         public static IReadOnlyCollection<string> GetPrimaryKeyColumns(this string sqlConnectionString, SqlObjectName tableName)
@@ -268,18 +282,18 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateTriggerDelete(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
+        public static void CreateTriggerDelete(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType, bool withNative)
         {
-            tran.CreateTrigger("CreateDeleteTrigger", triggerName, tableName,dialogHandle, messageType);
+            tran.CreateTrigger("CreateDeleteTrigger", triggerName, tableName,dialogHandle, messageType,withNative);
         }
-        public static void CreateTriggerInsert(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
+        public static void CreateTriggerInsert(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType, bool withNative)
         {
-            tran.CreateTrigger("CreateInsertTrigger", triggerName, tableName,dialogHandle, messageType);
+            tran.CreateTrigger("CreateInsertTrigger", triggerName, tableName,dialogHandle, messageType,withNative);
         }
 
-        public static void CreateTriggerUpdate(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
+        public static void CreateTriggerUpdate(this SqlTransaction tran, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType, bool withNative)
         {
-            tran.CreateTrigger("CreateUpdateTrigger",triggerName,tableName,dialogHandle, messageType);
+            tran.CreateTrigger("CreateUpdateTrigger",triggerName,tableName,dialogHandle, messageType,withNative);
         }
 
         public static void DropTrigger(this SqlTransaction tran, SqlObjectName triggerName)
@@ -287,7 +301,7 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery($"DROP TRIGGER {triggerName}");
         }
 
-        private static void CreateTrigger(this SqlTransaction tran, string triggerResource, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType)
+        private static void CreateTrigger(this SqlTransaction tran, string triggerResource, SqlObjectName triggerName, SqlObjectName tableName, string dialogHandle, SqlSchemalessObjectName messageType, bool withNative)
         {
             var script = LoadScript(triggerResource);
             script = script.Replace("{triggerName}", triggerName);
@@ -296,6 +310,16 @@ namespace RogerWaters.RealTimeDb
             script = script.Replace("{tableName}", tableName);
             script = script.Replace("{dialogHandle}", dialogHandle);
             script = script.Replace("{messageType}", messageType);
+            if (withNative)
+            {
+                script = script.Replace("{with}", "WITH NATIVE_COMPILATION, SCHEMABINDING");
+                script = script.Replace("{as}", "BEGIN ATOMIC WITH ( TRANSACTION ISOLATION LEVEL = SNAPSHOT, LANGUAGE = N'us_english' )");
+            }
+            else
+            {
+                script = script.Replace("{with}", String.Empty);
+                script = script.Replace("{as}", String.Empty);
+            }
             tran.ExecuteNonQuery(script);
         }
 

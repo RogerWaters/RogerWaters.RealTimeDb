@@ -7,24 +7,21 @@ namespace RogerWaters.RealTimeDb
     {
         private int _refCounter;
 
-        private readonly object _lock = new object();
-
         public readonly T Value;
-
-        private readonly Action<ReferenceSource<T>> _disposed;
-
-        private volatile bool _isDisposed = false;
+        
+        private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
 
         public ReferenceSource(T value, Action<ReferenceSource<T>> disposed)
         {
             Value = value;
-            _disposed = disposed;
+            _disposeHelper.Attach(Value);
+            _disposeHelper.Attach(() => disposed(this));
             _refCounter = 0;
         }
 
         private void PropablyDispose()
         {
-            lock (_lock)
+            _disposeHelper.Do(() =>
             {
                 if (Interlocked.Decrement(ref _refCounter) == -1)
                 {
@@ -34,45 +31,20 @@ namespace RogerWaters.RealTimeDb
                 {
                     Interlocked.Increment(ref _refCounter);
                 }
-            }
+            });
         }
 
         public bool TryCreateReference(out IReference<T> reference)
         {
-            reference = null;
-            if (_isDisposed == false)
-            {
-                lock (_lock)
-                {
-                    if (_isDisposed == false)
-                    {
-                        reference = new Reference(this);
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            IReference<T> tmp = null;
+            var result = _disposeHelper.Do(() => { tmp = new Reference(this); });
+            reference = tmp;
+            return result;
         }
 
         public void Dispose()
         {
-            if (_isDisposed)
-            {
-                return;
-            }
-
-            lock (_lock)
-            {
-                if (_isDisposed)
-                {
-                    return;
-                }
-                _isDisposed = true;
-                Value.Dispose();
-                _disposed(this);
-            }
-
+            _disposeHelper.Dispose();
         }
     }
 }

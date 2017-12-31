@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?><Database Name="SomeDB" Class="SomeDbDataContext" xmlns="http://schemas.microsoft.com/linqtosql/dbml/2007">
-  <Connection Mode="AppSettings" ConnectionString="Data Source=localhost;Initial Catalog=SomeDB;Integrated Security=True" SettingsObjectName="RogerWaters.RealTimeDb.TestClient.Properties.Settings" SettingsPropertyName="SomeDBConnectionString" Provider="System.Data.SqlClient" />
+  <Connection Mode="AppSettings" ConnectionString="Data Source=localhost;Initial Catalog=SomeDB;Integrated Security=True;Connect Timeout=160" SettingsObjectName="RogerWaters.RealTimeDb.TestClient.Properties.Settings" SettingsPropertyName="SomeDBConnectionString" Provider="System.Data.SqlClient" />
   <Table Name="dbo.empty" Member="empty">
     <Type Name="empty">
       <Column Name="id" Type="System.Int32" DbType="Int NOT NULL" CanBeNull="false" />

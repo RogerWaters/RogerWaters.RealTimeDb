@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Data;
 using System.Xml.Linq;
 using RogerWaters.RealTimeDb.EventArgs;
 
@@ -7,7 +8,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
     /// <summary>
     /// Observe a table for changes
     /// </summary>
-    internal sealed class TableObserver : SchemaObject, IDisposable
+    internal sealed class TableObserver : IDisposable
     {
         /// <summary>
         /// The database containing this table
@@ -44,6 +45,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         /// </summary>
         public event EventHandler<TableDataChangedEventArgs> OnTableDataChanged;
 
+        private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
+
         /// <summary>
         /// Initialize a new instance of <see cref="TableObserver"/>
         /// </summary>
@@ -59,13 +62,38 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             _deleteTriggerName = string.Format(db.Config.TriggerNameTemplate, sqlObjectName.Schema, "delete", sqlObjectName.Name);
             _updateTriggerName = string.Format(db.Config.TriggerNameTemplate, sqlObjectName.Schema, "update", sqlObjectName.Name);
 
-            SetupDatabaseSchema();
+            bool isMemoryTable = false;
+            db.Config.DatabaseConnectionString.WithConnection(con =>
+            {
+                using (var command = con.CreateCommand())
+                {
+                    command.CommandText = "SELECT is_memory_optimized FROM sys.tables WHERE name = @name And schema_id = schema_id(@schema)";
+                    command.Parameters.AddWithValue("name", sqlObjectName.Name);
+                    command.Parameters.AddWithValue("schema", sqlObjectName.Schema);
+                    isMemoryTable = (bool) command.ExecuteScalar();
+                }
+            });
+            SetupDatabaseSchema(isMemoryTable);
+        }
+
+        public TableObserver(Database db, SqlObjectName sqlObjectName, string[] primaryKeyColumns, bool memoryTrigger)
+        {
+            _db = db;
+            SqlObjectName = sqlObjectName;
+            Schema = new RowSchema(db.Config.DatabaseConnectionString, sqlObjectName,primaryKeyColumns);
+
+            _insertTriggerName = string.Format(db.Config.TriggerNameTemplate, sqlObjectName.Schema, "insert", sqlObjectName.Name);
+            _deleteTriggerName = string.Format(db.Config.TriggerNameTemplate, sqlObjectName.Schema, "delete", sqlObjectName.Name);
+            _updateTriggerName = string.Format(db.Config.TriggerNameTemplate, sqlObjectName.Schema, "update", sqlObjectName.Name);
+
+            SetupDatabaseSchema(memoryTrigger);
         }
 
         /// <summary>
         /// Setup database to receive changes for table
         /// </summary>
-        private void SetupDatabaseSchema()
+        /// <param name="memoryTrigger"></param>
+        private void SetupDatabaseSchema(bool memoryTrigger)
         {
             var config = _db.Config;
             var dialogHandle = _db.ConversationHandle.ToString();
@@ -74,11 +102,26 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             {
                 using (var transaction = con.BeginTransaction())
                 {
-                    transaction.CreateTriggerDelete(_deleteTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName);
-                    transaction.CreateTriggerInsert(_insertTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName);
-                    transaction.CreateTriggerUpdate(_updateTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName);
+                    transaction.CreateTriggerDelete(_deleteTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName,memoryTrigger);
+                    transaction.CreateTriggerInsert(_insertTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName,memoryTrigger);
+                    transaction.CreateTriggerUpdate(_updateTriggerName, SqlObjectName, dialogHandle, config.MessageTypeName,memoryTrigger);
                     transaction.Commit();
                 }
+            });
+
+            _disposeHelper.Attach(() =>
+            {
+                config.DatabaseConnectionString.WithConnection(con =>
+                {
+                    using (var transaction = con.BeginTransaction())
+                    {
+                        transaction.DropTrigger(_deleteTriggerName);
+                        transaction.DropTrigger(_insertTriggerName);
+                        transaction.DropTrigger(_updateTriggerName);
+
+                        transaction.Commit();
+                    }
+                });
             });
         }
 
@@ -88,32 +131,18 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         /// <param name="result">The event data</param>
         internal void OnReceive(XElement result)
         {
-            if (Schema.TryGetEventRows(result, out var rows, out var changeKind))
+            _disposeHelper.Do(() =>
             {
-                OnTableDataChanged?.Invoke(this, new TableDataChangedEventArgs(rows, changeKind));
-            }
-        }
-
-        /// <inheritdoc />
-        public override void CleanupSchemaChanges()
-        {
-            var config = _db.Config;
-            config.DatabaseConnectionString.WithConnection(con =>
-            {
-                using (var transaction = con.BeginTransaction())
+                if (Schema.TryGetEventRows(result, out var rows, out var changeKind))
                 {
-                    transaction.DropTrigger(_deleteTriggerName);
-                    transaction.DropTrigger(_insertTriggerName);
-                    transaction.DropTrigger(_updateTriggerName);
-
-                    transaction.Commit();
+                    OnTableDataChanged?.Invoke(this, new TableDataChangedEventArgs(rows, changeKind));
                 }
             });
         }
-
+        
         public void Dispose()
         {
-            CleanupSchemaChanges();
+            _disposeHelper.Dispose();
         }
     }
 }

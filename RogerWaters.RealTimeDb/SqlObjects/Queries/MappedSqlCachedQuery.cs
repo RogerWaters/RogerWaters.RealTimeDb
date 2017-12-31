@@ -12,11 +12,6 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
     public class MappedSqlCachedQuery<TRow,TKey> : QueryObserver, IEnumerable<TRow>
     {
         /// <summary>
-        /// Database this query belongs to
-        /// </summary>
-        private readonly Database _db;
-
-        /// <summary>
         /// Function to extract <typeparamref name="TRow"/> from <see cref="Row"/>
         /// </summary>
         private readonly Func<Row, TRow> _rowFactory;
@@ -25,17 +20,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         /// Function to extract <typeparamref name="TKey"/> from <typeparamref name="TRow"/>
         /// </summary>
         private readonly Func<TRow, TKey> _keyExtractor;
-
-        /// <summary>
-        /// The view that represents the query
-        /// </summary>
-        private readonly IReference<ViewObserver> _view;
-
-        /// <summary>
-        /// The name of the view
-        /// </summary>
-        private readonly SqlObjectName _queryViewName;
-
+        
         /// <summary>
         /// The lock to ensure that initialization and changes occur in order
         /// </summary>
@@ -45,6 +30,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         /// Cache for rows
         /// </summary>
         private readonly ReducableDictionary<TKey, TRow> _rows;
+
+        private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
 
         /// <summary>
         /// Create a new instance of <see cref="SqlCachedQuery"/>
@@ -58,31 +45,20 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         /// <param name="rowFactory">Function to transform <see cref="Row"/> into <typeparamref name="TRow"/></param>
         internal MappedSqlCachedQuery(Database db, string query, Func<Row,TRow> rowFactory, Func<TRow,TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns) : base(Guid.NewGuid())
         {
-            _db = db;
             _rowFactory = rowFactory;
             _keyExtractor = keyExtractor;
 
-            _queryViewName = string.Format(db.Config.QueryViewNameTemplate,Guid.ToString().Replace('-','_'));
+            var view = SetupView(db, query, primaryKeyColumn, additionalPrimaryKeyColumns);
 
-            db.Config.DatabaseConnectionString.WithConnection
-            (
-                con =>
-                {
-                    using (var command = con.CreateCommand())
-                    {
-                        command.CommandText = $"CREATE VIEW {_queryViewName} AS {Environment.NewLine}{query}";
-                        command.ExecuteNonQuery();
-                    }
-                }
-            );
-            _view = db.GetOrAddView(_queryViewName, primaryKeyColumn, additionalPrimaryKeyColumns);
             lock (_dataAccessLock)
             {
-                _view.Value.OnTableDataChanged += DataChanged;
-                RowSchema schema = _view.Value.CacheTable.Value.Schema;
+                view.OnTableDataChanged += DataChanged;
+                _disposeHelper.Attach(() => view.OnTableDataChanged -= DataChanged);
+
+                RowSchema schema = view.CacheTable.Value.Schema;
                 _rows = new ReducableDictionary<TKey, TRow>(keyComparerFactory(schema));
 
-                db.Config.DatabaseConnectionString.WithReader($"SELECT * FROM {_queryViewName}", reader =>
+                db.Config.DatabaseConnectionString.WithReader($"SELECT * FROM {view.ViewName}", reader =>
                 {
                     while (reader.Read())
                     {
@@ -92,11 +68,43 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
                         _rows.Add(key, entry);
                     }
                 });
+                Console.WriteLine(DateTime.Now.TimeOfDay);
             }
         }
 
+        private SqlMemoryMergedViewObserver SetupView(Database db, string query, string primaryKeyColumn, string[] additionalPrimaryKeyColumns)
+        {
+            var queryViewName = string.Format(db.Config.QueryViewNameTemplate,Guid.ToString().Replace('-','_'));
+
+            db.Config.DatabaseConnectionString.WithConnection
+            (
+                con =>
+                {
+                    using (var command = con.CreateCommand())
+                    {
+                        command.CommandText = $"CREATE VIEW {queryViewName} AS {Environment.NewLine}{query}";
+                        command.ExecuteNonQuery();
+                    }
+                }
+            );
+            var view = new SqlMemoryMergedViewObserver(db, queryViewName, primaryKeyColumn, additionalPrimaryKeyColumns);
+            _disposeHelper.Attach(view);
+            _disposeHelper.Attach(() =>
+            {
+                db.Config.DatabaseConnectionString.WithConnection(con =>
+                {
+                    using (var command = con.CreateCommand())
+                    {
+                        command.CommandText = $"DROP VIEW {view.ViewName}";
+                        command.ExecuteNonQuery();
+                    }
+                });
+            });
+            return view;
+        }
+
         /// <summary>
-        /// Delegates view changes to <see cref="UserQuery"/>
+        /// Process view changes
         /// </summary>
         /// <param name="sender">The SqlObject that created the event</param>
         /// <param name="e">The arguments that are redirected</param>
@@ -124,18 +132,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         /// <inheritdoc />
         public override void Dispose()
         {
-            _view.Value.OnTableDataChanged -= DataChanged;
-            
-            _view.Dispose();
-
-            _db.Config.DatabaseConnectionString.WithConnection(con =>
-            {
-                using (var command = con.CreateCommand())
-                {
-                    command.CommandText = $"DROP VIEW {_queryViewName}";
-                    command.ExecuteNonQuery();
-                }
-            });
+            _disposeHelper.Dispose();
         }
 
         /// <inheritdoc />

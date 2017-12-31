@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ConstrainedExecution;
+using System.Threading;
 using System.Xml.Linq;
 using RogerWaters.RealTimeDb.Configuration;
 using RogerWaters.RealTimeDb.SqlObjects.Queries;
@@ -11,7 +13,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
     /// <summary>
     /// Represents a db that is prepared for synchronization
     /// </summary>
-    internal sealed class Database : SchemaObject, IDisposable
+    internal sealed class Database : IDisposable
     {
         /// <summary>
         /// The configuration the db is initialized with
@@ -31,22 +33,19 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         /// <summary>
         /// Views currently observed
         /// </summary>
-        private readonly ReferenceSourceCollcetion<SqlObjectName, ViewObserver> _views = new ReferenceSourceCollcetion<SqlObjectName, ViewObserver>();
+        private readonly ReferenceSourceCollcetion<SqlObjectName, SqlMergedViewObserver> _views = new ReferenceSourceCollcetion<SqlObjectName, SqlMergedViewObserver>();
 
         /// <summary>
         /// Custom queries currently active
         /// </summary>
         private readonly ConcurrentDictionary<Guid,  QueryObserver> _customQueries = new ConcurrentDictionary<Guid,  QueryObserver>();
-
-        /// <summary>
-        /// simple check to reduce dispose overhead
-        /// </summary>
-        private volatile bool _disposed = false;
-
+        
         /// <summary>
         /// Transmitter that receives messages from the queue
         /// </summary>
         private readonly MessageTransmitter _messageTransmitter;
+
+        private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
 
         /// <summary>
         /// Initialize a new instance of <see cref="Database"/>
@@ -60,8 +59,21 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
             _messageTransmitter = new MessageTransmitter(this);
             _messageTransmitter.MessageRecieved += OnMessageRecieved;
-        }
 
+            _disposeHelper.Attach(_messageTransmitter);
+            _disposeHelper.Attach(_tables);
+            _disposeHelper.Attach(_views);
+            _disposeHelper.Attach(() =>
+            {
+                var queries = _customQueries.ToArray();
+                _customQueries.Clear();
+                foreach (var query in queries)
+                {
+                    query.Value.Dispose();
+                }
+            });
+        }
+        
         /// <summary>
         /// Executed if message is received from Sql-Server
         /// </summary>
@@ -81,52 +93,44 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
         internal SqlCachedQuery CustomQuery(string query, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
-            var customQuery = new SqlCachedQuery(this, query, primaryKeyColumn, additionalPrimaryKeyColumns);
-            _customQueries.TryAdd(customQuery.Guid, customQuery);
-            return customQuery;
+            return _disposeHelper.DoOrThrow(() =>
+            {
+                var customQuery = new SqlCachedQuery(this, query, primaryKeyColumn, additionalPrimaryKeyColumns);
+                _customQueries.TryAdd(customQuery.Guid, customQuery);
+                return customQuery;
+            });
         }
 
         internal MappedSqlCachedQuery<TRow, TKey> CustomQuery<TRow, TKey>(string query, Func<Row, TRow> rowFactory,
             Func<TRow, TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory,
             string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
-            var customQuery = new MappedSqlCachedQuery<TRow,TKey>(this, query, rowFactory, keyExtractor, keyComparerFactory, primaryKeyColumn, additionalPrimaryKeyColumns);
-            _customQueries.TryAdd(customQuery.Guid, customQuery);
-            return customQuery;
+            return _disposeHelper.DoOrThrow(() =>
+            {
+                var customQuery = new MappedSqlCachedQuery<TRow, TKey>(this, query, rowFactory, keyExtractor, keyComparerFactory, primaryKeyColumn, additionalPrimaryKeyColumns);
+                _customQueries.TryAdd(customQuery.Guid, customQuery);
+                return customQuery;
+            });
         }
         
         public IReference<TableObserver> GetOrAddTable(SqlObjectName sqlObjectName)
         {
-            return _tables.GetOrCreate(sqlObjectName, t => new TableObserver(this, sqlObjectName));
+            return _disposeHelper.DoOrThrow(() => _tables.GetOrCreate(sqlObjectName, t => new TableObserver(this, sqlObjectName)));
         }
 
-        public IReference<ViewObserver> GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
+        public IReference<SqlMergedViewObserver> GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
         {
-            return _views.GetOrCreate(viewName, v => new ViewObserver(this, viewName, primaryKeyColumn, primaryKeyColumns));
+            return _disposeHelper.DoOrThrow(() => _views.GetOrCreate(viewName, v => new SqlMergedViewObserver(this, viewName, primaryKeyColumn, primaryKeyColumns)));
         }
 
         public void Dispose()
         {
-            if (_disposed == false)
-            {
-                _disposed = true;
-                _messageTransmitter.Dispose();
-            }
+            _disposeHelper.Dispose();
         }
 
-        public override void CleanupSchemaChanges()
+        internal IReference<TableObserver> GetOrAddTable(SqlObjectName sqlObjectName, string[] primaryKeyColumns, bool isMemoryTable)
         {
-            Dispose();
-
-            var queries = _customQueries.ToArray();
-            _customQueries.Clear();
-            foreach (var query in queries)
-            {
-                query.Value.Dispose();
-            }
-
-            _views.Dispose();
-            _tables.Dispose();
+            return _disposeHelper.DoOrThrow(() => _tables.GetOrCreate(sqlObjectName, t => new TableObserver(this, sqlObjectName, primaryKeyColumns,isMemoryTable)));
         }
     }
 }

@@ -55,6 +55,7 @@
     <Compile Include="Configuration\DatabaseConfigBuilder.cs" />
     <Compile Include="Configuration\QueryCachePolicy.cs" />
     <Compile Include="Configuration\ViewHandlingPolicy.cs" />
+    <Compile Include="DisposeHelper.cs" />
     <Compile Include="IReference.cs" />
     <Compile Include="Linq2Sql\DisposeBehavior.cs" />
     <Compile Include="Linq2Sql\RealtimeDbDataContext.cs" />
@@ -68,11 +69,10 @@
     <Compile Include="SqlObjects\Queries\QueryObserver.cs" />
     <Compile Include="SqlObjects\Queries\MappedSqlCachedQuery.cs" />
     <Compile Include="ReferenceSource.cs" />
-    <Compile Include="SqlObjects\SchemaObject.cs" />
-    <Compile Include="SqlObjects\UserQuery.cs" />
+    <Compile Include="SqlObjects\SqlMemoryMergedViewObserver.cs" />
     <Compile Include="SqlObjects\SqlSchemalessObjectName.cs" />
     <Compile Include="SqlObjects\SqlObjectName.cs" />
-    <Compile Include="SqlObjects\ViewObserver.cs" />
+    <Compile Include="SqlObjects\SqlMergedViewObserver.cs" />
     <EmbeddedResource Include="Scripts\GetConversation.Sql" />
     <EmbeddedResource Include="Scripts\CreateService.Sql" />
     <EmbeddedResource Include="Scripts\CreateQueue.Sql" />
@@ -98,9 +98,6 @@
     <EmbeddedResource Include="Scripts\CreateViewCache.Sql" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Scripts\CreateViewCachePrimaryIndex.Sql" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -108,6 +105,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Scripts\GetPrimaryIndexes.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\CreateMemoryViewCache.Sql" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

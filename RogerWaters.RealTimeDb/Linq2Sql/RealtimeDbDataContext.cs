@@ -1,4 +1,6 @@
 ﻿using System;
+using System.CodeDom;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Linq;
@@ -20,6 +22,8 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
     {
         private readonly RealtimeDbDataContextBuilder<T> _contextConfiguration;
         
+        private static readonly ConcurrentDictionary<Type,Delegate> _mappingMethods = new ConcurrentDictionary<Type, Delegate>();
+
         /// <summary>
         /// Get or Set the behavior how Dispose is applied to the database
         /// </summary>
@@ -77,26 +81,26 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
 
                         text = text.Replace(name, ToInlineValue(parameter));
                     }
-                    
-                    Func<Row, TResult> mapper = null;
+
+                    var type = typeof(TResult);
                     return _db.CustomQuery
                     (
                         text,
                         r =>
                         {
-                            if (mapper == null)
+                            var mapper = (Func<Row,TResult>)_mappingMethods.GetOrAdd(type, t =>
                             {
                                 var rowParam = Expression.Parameter(typeof(Row));
 
-                                var @new = Expression.New(typeof(TResult).GetConstructors().First(),
+                                var @new = Expression.New(type.GetConstructors().First(),
                                     r.Schema.ColumnTypes.Select
                                     (
                                         kvp => Expression.Convert(
                                             Expression.Property(rowParam, "Item", Expression.Constant(kvp.Key)),
                                             kvp.Value)
                                     ));
-                                mapper = Expression.Lambda<Func<Row, TResult>>(@new, rowParam).Compile();
-                            }
+                                return Expression.Lambda<Func<Row, TResult>>(@new, rowParam).Compile();
+                            });
 
                             return mapper(r);
                         },
@@ -172,14 +176,7 @@ namespace RogerWaters.RealTimeDb.Linq2Sql
         /// <inheritdoc />
         public void Dispose()
         {
-            if (DisposeBehavior == DisposeBehavior.CleanupSchema)
-            {
-                _db?.CleanupSchemaChanges();
-            }
-            else
-            {
-                _db?.Dispose();
-            }
+            _db?.Dispose();
         }
     }
 }

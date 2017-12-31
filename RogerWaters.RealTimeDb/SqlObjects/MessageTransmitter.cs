@@ -11,9 +11,9 @@ namespace RogerWaters.RealTimeDb.SqlObjects
     internal sealed class MessageTransmitter:IDisposable
     {
         /// <summary>
-        /// The database the reader operates in
+        /// The configuration from the database
         /// </summary>
-        private readonly Database _db;
+        private readonly DatabaseConfig _config;
 
         /// <summary>
         /// The conversation handle events are transmitted through
@@ -41,26 +41,25 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         /// <param name="db"></param>
         public MessageTransmitter(Database db)
         {
-            _db = db;
-            DatabaseConfig config = db.Config;
+            _config = db.Config;
             Guid conversation = Guid.Empty;
 
-            config.DatabaseConnectionString.WithConnection(con =>
+            _config.DatabaseConnectionString.WithConnection(con =>
             {
                 using (var transaction = con.BeginTransaction())
                 {
-                    transaction.CreateMessageType(config.MessageTypeName);
-                    transaction.CreateContract(config.ContractName, config.MessageTypeName);
-                    transaction.CreateQueue(config.SenderQueueName);
-                    transaction.CreateQueue(config.ReceiverQueueName);
-                    transaction.CreateService(config.SenderServiceName, config.SenderQueueName, config.ContractName);
-                    transaction.CreateService(config.ReceiverServiceName, config.ReceiverQueueName, config.ContractName);
-                    conversation = transaction.GetConversation(config.SenderServiceName, config.ReceiverServiceName, config.ContractName);
+                    transaction.CreateMessageType(_config.MessageTypeName);
+                    transaction.CreateContract(_config.ContractName, _config.MessageTypeName);
+                    transaction.CreateQueue(_config.SenderQueueName);
+                    transaction.CreateQueue(_config.ReceiverQueueName);
+                    transaction.CreateService(_config.SenderServiceName, _config.SenderQueueName, _config.ContractName);
+                    transaction.CreateService(_config.ReceiverServiceName, _config.ReceiverQueueName, _config.ContractName);
+                    conversation = transaction.GetConversation(_config.SenderServiceName, _config.ReceiverServiceName, _config.ContractName);
                     transaction.Commit();
                 }
             });
             ConversationHandle = conversation;
-            _messageReader = new Thread(ProcessMessages);
+            _messageReader = new Thread(ProcessMessages){ IsBackground = true };
             _cancellationTokenSource = new CancellationTokenSource();
             _messageReader.Start();
         }
@@ -73,7 +72,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             var token = _cancellationTokenSource.Token;
             while (token.IsCancellationRequested == false)
             {
-                foreach (var message in _db.Config.DatabaseConnectionString.ReceiveMessages(_db.Config.ReceiverQueueName, TimeSpan.FromSeconds(5)))
+                foreach (var message in _config.DatabaseConnectionString.ReceiveMessages(_config.ReceiverQueueName, TimeSpan.FromSeconds(5)))
                 {
                     if (token.IsCancellationRequested)
                     {
@@ -93,21 +92,27 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             if ((_messageReader.ThreadState & ThreadState.Unstarted) == 0)
             {
                 _cancellationTokenSource.Cancel();
-                _messageReader.Join();
+                if (Environment.HasShutdownStarted)
+                {
+                    _messageReader.Abort();
+                }
+                else
+                {
+                    _messageReader.Join();
+                }
             }
-
-            var config = _db.Config;
-            config.DatabaseConnectionString.WithConnection(con =>
+            
+            _config.DatabaseConnectionString.WithConnection(con =>
             {
                 using (var transaction = con.BeginTransaction())
                 {
                     transaction.EndConversation(ConversationHandle);
-                    transaction.DropService(config.SenderServiceName);
-                    transaction.DropService(config.ReceiverServiceName);
-                    transaction.DropQueue(config.SenderQueueName);
-                    transaction.DropQueue(config.ReceiverQueueName);
-                    transaction.DropContract(config.ContractName);
-                    transaction.DropMessageType(config.MessageTypeName);
+                    transaction.DropService(_config.SenderServiceName);
+                    transaction.DropService(_config.ReceiverServiceName);
+                    transaction.DropQueue(_config.SenderQueueName);
+                    transaction.DropQueue(_config.ReceiverQueueName);
+                    transaction.DropContract(_config.ContractName);
+                    transaction.DropMessageType(_config.MessageTypeName);
                     transaction.Commit();
                 }
             });
