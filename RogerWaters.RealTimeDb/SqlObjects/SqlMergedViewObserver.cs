@@ -34,14 +34,8 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
             var dependencies = LoadDependencies(db.Config, viewName).Select(db.GetOrAddTable).ToList();
             
-            db.Config.DatabaseConnectionString.WithConnection(con =>
-            {
-                using (var transaction = con.BeginTransaction())
-                {
-                    transaction.CreateViewCache(viewName, CacheTableName, primaryKeyColumns);
-                    transaction.Commit();
-                }
-            });
+            db.Config.DatabaseConnectionString.CreateViewCache(viewName, CacheTableName, primaryKeyColumns);
+
             var mergeThread = SetupDependencyEvent(dependencies);
 
             CacheTable = SetupCacheTable(db, CacheTableName, primaryKeyColumns);

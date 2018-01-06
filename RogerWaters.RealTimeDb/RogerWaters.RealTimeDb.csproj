@@ -53,8 +53,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Configuration\DatabaseConfigBuilder.cs" />
-    <Compile Include="Configuration\QueryCachePolicy.cs" />
-    <Compile Include="Configuration\ViewHandlingPolicy.cs" />
     <Compile Include="DisposeHelper.cs" />
     <Compile Include="IReference.cs" />
     <Compile Include="Linq2Sql\DisposeBehavior.cs" />
@@ -65,14 +63,21 @@
     <Compile Include="ReferenceSource.Reference.cs" />
     <Compile Include="ReferenceSourceCollcetion.cs" />
     <Compile Include="RowChangeKind.cs" />
+    <Compile Include="Scripts\Queries\MergeSelectViewChanges.cs" />
+    <Compile Include="SqlObjects\Caching\CacheWorker.cs" />
+    <Compile Include="SqlObjects\Caching\CachingType.cs" />
+    <Compile Include="SqlObjects\Caching\InMemoryCache.cs" />
+    <Compile Include="SqlObjects\Caching\QueryView.cs" />
+    <Compile Include="SqlObjects\Caching\SqlMemoryTableCache.cs" />
+    <Compile Include="SqlObjects\Caching\SqlTableCache.cs" />
     <Compile Include="SqlObjects\MessageTransmitter.cs" />
     <Compile Include="SqlObjects\Queries\QueryObserver.cs" />
     <Compile Include="SqlObjects\Queries\MappedSqlCachedQuery.cs" />
     <Compile Include="ReferenceSource.cs" />
-    <Compile Include="SqlObjects\SqlMemoryMergedViewObserver.cs" />
     <Compile Include="SqlObjects\SqlSchemalessObjectName.cs" />
     <Compile Include="SqlObjects\SqlObjectName.cs" />
     <Compile Include="SqlObjects\SqlMergedViewObserver.cs" />
+    <Compile Include="SqlObjects\Caching\Cache.cs" />
     <EmbeddedResource Include="Scripts\GetConversation.Sql" />
     <EmbeddedResource Include="Scripts\CreateService.Sql" />
     <EmbeddedResource Include="Scripts\CreateQueue.Sql" />
@@ -108,6 +113,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Scripts\CreateMemoryViewCache.Sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\MergeSelectViewChanges.Sql" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

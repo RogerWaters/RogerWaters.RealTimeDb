@@ -9,8 +9,6 @@ namespace RogerWaters.RealTimeDb
 {
     public sealed class RowSchema
     {
-        private readonly string _connectionString;
-        private readonly SqlObjectName _tableName;
         public Dictionary<string,int> PrimaryKeyColumns { get; }
         private (Dictionary<int, string>, Dictionary<string, int>, Dictionary<int, Type>) _columns;
         public Dictionary<int, string> ColumnNames => _columns.Item1;
@@ -26,10 +24,16 @@ namespace RogerWaters.RealTimeDb
 
         public RowSchema(string connectionString, SqlObjectName tableName, string[] primaryKeyColumns)
         {
-            _connectionString = connectionString;
-            _tableName = tableName;
             _columns = GetTableColumns(connectionString,tableName);
             PrimaryKeyColumns = (primaryKeyColumns ?? connectionString.GetPrimaryKeyColumns(tableName)).ToDictionary(c => c, c => ColumnNamesLookup[c]);
+            RowEqualityComparer = new RowComparer();
+            RowKeyEqualityComparer = new RowKeyComparer();
+        }
+
+        public RowSchema(SqlDataReader reader, string[] primaryKeyColumns)
+        {
+            _columns = GetTableColumns(reader);
+            PrimaryKeyColumns = primaryKeyColumns.ToDictionary(c => c, c => ColumnNamesLookup[c]);
             RowEqualityComparer = new RowComparer();
             RowKeyEqualityComparer = new RowKeyComparer();
         }
@@ -49,6 +53,22 @@ namespace RogerWaters.RealTimeDb
                     types.Add(i,reader.GetFieldType(i));
                 }
             });
+            return (names, namesLookup, types);
+        }
+
+        private (Dictionary<int, string>, Dictionary<string, int>, Dictionary<int, Type>) GetTableColumns(SqlDataReader reader)
+        {
+            var names = new Dictionary<int, string>();
+            var namesLookup = new Dictionary<string, int>();
+            var types = new Dictionary<int, Type>();
+
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                names.Add(i,reader.GetName(i));
+                namesLookup.Add(reader.GetName(i),i);
+                types.Add(i,reader.GetFieldType(i));
+            }
+
             return (names, namesLookup, types);
         }
 

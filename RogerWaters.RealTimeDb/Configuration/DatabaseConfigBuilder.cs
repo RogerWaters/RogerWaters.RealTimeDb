@@ -1,4 +1,5 @@
 ﻿using RogerWaters.RealTimeDb.SqlObjects;
+using RogerWaters.RealTimeDb.SqlObjects.Caching;
 
 namespace RogerWaters.RealTimeDb.Configuration
 {
@@ -68,16 +69,11 @@ namespace RogerWaters.RealTimeDb.Configuration
         /// 1: name of the view
         /// </remarks>
         public SqlObjectName ViewCacheTableNameTemplate { get; set; } = "{0}.tmp_RDB_{1}";
-
+        
         /// <summary>
-        /// If not null use memory tables for view and query caches
+        /// Setup how queries are cached
         /// </summary>
-        public string MemoryTableStoragePath { get; set; } = null;
-
-        /// <summary>
-        /// If views and triggers will be compiled with sql native
-        /// </summary>
-        public bool CompileObjects { get; set; } = true;
+        public CachingType CachingType { get; set; } = CachingType.InMemory;
 
         /// <summary>
         /// Creates a new Configuration

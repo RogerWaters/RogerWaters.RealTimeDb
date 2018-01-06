@@ -164,7 +164,7 @@ namespace RogerWaters.RealTimeDb
             tran.ExecuteNonQuery(script);
         }
 
-        public static void CreateViewCache(this SqlTransaction tran, SqlObjectName viewName, SqlObjectName cacheName, params string[] primaryColumns)
+        public static void CreateViewCache(this string connectionString, SqlObjectName viewName, SqlObjectName cacheName, params string[] primaryColumns)
         {
             var script = LoadScript("CreateViewCache");
             script = script.Replace("{viewName}", viewName);
@@ -172,7 +172,7 @@ namespace RogerWaters.RealTimeDb
             script = script.Replace("{cacheName.Schema}", cacheName.Schema);
             script = script.Replace("{cacheName.Name}", cacheName.Name);
             script = script.Replace("{primaryColumnList}", String.Join(", ",primaryColumns.Select(c => $"[{c}]")));
-            tran.ExecuteNonQuery(script);
+            connectionString.WithConnection(con => { con.ExecuteNonQuery(script); });
         }
 
         public static void CreateMemoryViewCache(this string connectionString, SqlObjectName viewName, SqlObjectName cacheName, params string[] primaryColumns)
@@ -185,6 +185,7 @@ namespace RogerWaters.RealTimeDb
             script = script.Replace("{primaryColumnList}", String.Join(", ",primaryColumns.Select(c => $"[{c}]")));
             connectionString.WithConnection(con => { con.ExecuteNonQuery(script); });
         }
+        
 
         public static IReadOnlyCollection<string> GetPrimaryKeyColumns(this string sqlConnectionString, SqlObjectName tableName)
         {
@@ -220,6 +221,67 @@ namespace RogerWaters.RealTimeDb
         }
 
         public static void MergeViewChanges(this string sqlConnection, SqlObjectName cacheName, SqlObjectName viewName, string[] keyColumns, string[] valueColumns)
+        {
+            var script = LoadScript("MergeViewChanges");
+            script = script.Replace("{cacheName}", cacheName);
+            script = script.Replace("{viewName}", viewName);
+            script = script.Replace("{targetAlias}", "t");
+            script = script.Replace("{sourceAlias}", "s");
+            script = script.Replace
+            (
+                "{keyColumnsMatchCondition}", 
+                String.Join(" AND ", keyColumns.Select(c => $"s.[{c}] = t.[{c}]"))
+            );
+            if (valueColumns.Length > 0)
+            {
+                script = script.Replace("{whenMatchedClause}", @"    WHEN MATCHED AND ({valueColumnsChangedCondition})
+        THEN 
+			UPDATE SET {valueColumnUpdates}");
+                script = script.Replace
+                (
+                    "{valueColumnsChangedCondition}",
+                    String.Join(" OR ", valueColumns.Select(c => $"s.[{c}] <> t.[{c}]"))
+                );
+                script = script.Replace
+                (
+                    "{valueColumnUpdates}",
+                    String.Join(", ", valueColumns.Select(c => $"t.[{c}] = s.[{c}]"))
+                );
+            }
+            else
+            {
+                script = script.Replace("{whenMatchedClause}", String.Empty);
+            }
+            script = script.Replace
+            (
+                "{allTargetCollumns}", 
+                String.Join(", ", keyColumns.Union(valueColumns).Select(c => $"[{c}]"))
+            );
+            script = script.Replace
+            (
+                "{allSourceColumns}", 
+                String.Join(", ", keyColumns.Union(valueColumns).Select(c => $"s.[{c}]"))
+            );
+            sqlConnection.WithConnection(con =>
+            {
+                using (var command = con.CreateCommand())
+                {
+                    command.CommandTimeout = 0;
+                    command.CommandText = script;
+                    command.ExecuteNonQuery();
+                }
+            });
+        }
+
+        public static void MergeViewChanges
+        (
+            this string sqlConnection, 
+            SqlObjectName cacheName, 
+            SqlObjectName viewName, 
+            string[] keyColumns, 
+            string[] valueColumns,
+            string[] notNullColumns
+        )
         {
             var script = LoadScript("MergeViewChanges");
             script = script.Replace("{cacheName}", cacheName);
@@ -372,7 +434,7 @@ namespace RogerWaters.RealTimeDb
             }
         }
 
-        private static string LoadScript(string name)
+        internal static string LoadScript(string name)
         {
             var assembly = typeof(SqlHelper).Assembly;
             var ressourceName = $@"{assembly.GetName().Name}.Scripts.{name}.Sql";

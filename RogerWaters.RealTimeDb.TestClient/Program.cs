@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using RogerWaters.RealTimeDb.Linq2Sql;
+using RogerWaters.RealTimeDb.SqlObjects.Caching;
 
 namespace RogerWaters.RealTimeDb.TestClient
 {
@@ -10,20 +13,49 @@ namespace RogerWaters.RealTimeDb.TestClient
     {
         static void Main(string[] args)
         {
-            DoWithDb();
+            DoWithDb(CachingType.InMemory);
+            DoWithDb(CachingType.SqlTable);
+            DoWithDb(CachingType.SqlInMemoryTable);
             //DoWithDbStressTest();
             //DefaultContex();
             Console.WriteLine("Enter to close");
             Console.ReadLine();
         }
 
-        public static void DoWithDb()
+        public static void DoWithDb(CachingType cachingType)
         {
+            Console.WriteLine(cachingType);
+            var stopwatch = Stopwatch.StartNew();
             using (
-            var context = new RealtimeDbDataContextBuilder<SomeDbDataContext>(() => new SomeDbDataContext()).Build()
+            var context = new RealtimeDbDataContextBuilder<SomeDbDataContext>(() => new SomeDbDataContext()){CachingType = cachingType}.Build()
             )
             {
-                Console.WriteLine(DateTime.Now.TimeOfDay);
+                Console.WriteLine("Context Created {0}ms",stopwatch.Elapsed.TotalMilliseconds);
+
+                context.DatabaseConfig.DatabaseConnectionString.WithConnection(con => con.ExecuteNonQuery(@"
+UPDATE MyTable
+SET [some] = NULL
+WHERE [some] = 'Merge'"));
+
+                context.DatabaseConfig.DatabaseConnectionString.WithConnection(con => con.ExecuteNonQuery(@"
+UPDATE MyTable2
+SET [some] = NULL
+WHERE [some] = 'Merge'"));
+
+                context.DatabaseConfig.DatabaseConnectionString.WithConnection(con => con.ExecuteNonQuery(@"
+UPDATE TOP (1) MyTable2
+SET [some] = 'Merge'
+WHERE [some] IS NULL"));
+
+                context.DatabaseConfig.DatabaseConnectionString.WithConnection(con => con.ExecuteNonQuery(@"
+UPDATE TOP (2000) MyTable
+SET [some] = 'Merge'
+WHERE [some] IS NULL"));
+
+                Thread.Sleep(100);
+
+                stopwatch.Restart();
+
                 var queries =
                     Enumerable.Range(0, 1000).AsParallel().Select(i => context.Query
                     (
@@ -45,11 +77,43 @@ namespace RogerWaters.RealTimeDb.TestClient
                             r.MyTable2_id
                         }
                     )).ToArray();
-                Console.WriteLine("Queries applied");
-                Console.ReadLine();
-                queries.AsParallel().ForAll(q => q.Result.Dispose());
-                Console.WriteLine("Queries disposed");
+                Console.WriteLine("Queries created {0}ms",stopwatch.Elapsed.TotalMilliseconds);
+                stopwatch.Restart();
+                Task.WaitAll(queries);
+
+                var results = queries.Select(q => q.Result).ToList();
+                Console.WriteLine("Queries loaded  {0}ms",stopwatch.Elapsed.TotalMilliseconds);
+                stopwatch.Restart();
+                var reference = results.First();
+                var count = reference.Count();
+                if (results.All(q => q.Count() == count) == false)
+                {
+                    Console.WriteLine("Queries have different count");
+                }
+
+                context.DatabaseConfig.DatabaseConnectionString.WithConnection(con => con.ExecuteNonQuery(@"
+UPDATE TOP (1000) MyTable
+SET [some] = 'Merge'
+WHERE [some] IS NULL"));
+                count+=1000;
+
+                while (true)
+                {
+                    Thread.Sleep(100);
+                    if (results.All(q => q.Count() == count))
+                    {
+                        break;
+                    }
+                }
+                Console.WriteLine("Wait for Sync after change {0}ms",stopwatch.Elapsed.TotalMilliseconds);
+                stopwatch.Restart();
+
+                queries.AsParallel().ForAll(q => q.Dispose());
+                Console.WriteLine("Dispose Queries {0}ms",stopwatch.Elapsed.TotalMilliseconds);
+                stopwatch.Restart();
             }
+
+            Console.WriteLine("Dispose {0}ms",stopwatch.Elapsed.TotalMilliseconds);
         }
 
         public static void DoWithDbStressTest()

@@ -2,8 +2,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.ConstrainedExecution;
-using System.Threading;
 using System.Xml.Linq;
 using RogerWaters.RealTimeDb.Configuration;
 using RogerWaters.RealTimeDb.SqlObjects.Queries;
@@ -29,12 +27,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         /// Tables currently observed
         /// </summary>
         private readonly ReferenceSourceCollcetion<SqlObjectName, TableObserver> _tables = new ReferenceSourceCollcetion<SqlObjectName, TableObserver>();
-
-        /// <summary>
-        /// Views currently observed
-        /// </summary>
-        private readonly ReferenceSourceCollcetion<SqlObjectName, SqlMergedViewObserver> _views = new ReferenceSourceCollcetion<SqlObjectName, SqlMergedViewObserver>();
-
+        
         /// <summary>
         /// Custom queries currently active
         /// </summary>
@@ -62,15 +55,11 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
             _disposeHelper.Attach(_messageTransmitter);
             _disposeHelper.Attach(_tables);
-            _disposeHelper.Attach(_views);
             _disposeHelper.Attach(() =>
             {
                 var queries = _customQueries.ToArray();
                 _customQueries.Clear();
-                foreach (var query in queries)
-                {
-                    query.Value.Dispose();
-                }
+                queries.AsParallel().ForAll(q => q.Value.Dispose());
             });
         }
         
@@ -93,9 +82,9 @@ namespace RogerWaters.RealTimeDb.SqlObjects
 
         internal SqlCachedQuery CustomQuery(string query, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
+            var customQuery = new SqlCachedQuery(this, query, Config.CachingType, primaryKeyColumn, additionalPrimaryKeyColumns);
             return _disposeHelper.DoOrThrow(() =>
             {
-                var customQuery = new SqlCachedQuery(this, query, primaryKeyColumn, additionalPrimaryKeyColumns);
                 _customQueries.TryAdd(customQuery.Guid, customQuery);
                 return customQuery;
             });
@@ -105,9 +94,9 @@ namespace RogerWaters.RealTimeDb.SqlObjects
             Func<TRow, TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory,
             string primaryKeyColumn, params string[] additionalPrimaryKeyColumns)
         {
+            var customQuery = new MappedSqlCachedQuery<TRow, TKey>(this, query, rowFactory, keyExtractor, keyComparerFactory, Config.CachingType, primaryKeyColumn, additionalPrimaryKeyColumns);
             return _disposeHelper.DoOrThrow(() =>
             {
-                var customQuery = new MappedSqlCachedQuery<TRow, TKey>(this, query, rowFactory, keyExtractor, keyComparerFactory, primaryKeyColumn, additionalPrimaryKeyColumns);
                 _customQueries.TryAdd(customQuery.Guid, customQuery);
                 return customQuery;
             });
@@ -116,11 +105,6 @@ namespace RogerWaters.RealTimeDb.SqlObjects
         public IReference<TableObserver> GetOrAddTable(SqlObjectName sqlObjectName)
         {
             return _disposeHelper.DoOrThrow(() => _tables.GetOrCreate(sqlObjectName, t => new TableObserver(this, sqlObjectName)));
-        }
-
-        public IReference<SqlMergedViewObserver> GetOrAddView(SqlObjectName viewName, string primaryKeyColumn, params string[] primaryKeyColumns)
-        {
-            return _disposeHelper.DoOrThrow(() => _views.GetOrCreate(viewName, v => new SqlMergedViewObserver(this, viewName, primaryKeyColumn, primaryKeyColumns)));
         }
 
         public void Dispose()

@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using RogerWaters.RealTimeDb.EventArgs;
+using RogerWaters.RealTimeDb.SqlObjects.Caching;
 
 namespace RogerWaters.RealTimeDb.SqlObjects.Queries
 {
@@ -32,6 +32,7 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         private readonly ReducableDictionary<TKey, TRow> _rows;
 
         private readonly LockedDisposeHelper _disposeHelper = new LockedDisposeHelper();
+        private readonly Cache _view;
 
         /// <summary>
         /// Create a new instance of <see cref="SqlCachedQuery"/>
@@ -40,95 +41,72 @@ namespace RogerWaters.RealTimeDb.SqlObjects.Queries
         /// <param name="query">UserQuery that is encapsulated by this query</param>
         /// <param name="keyExtractor">Function to extract <typeparamref name="TKey"/> from <typeparamref name="TRow"/></param>
         /// <param name="keyComparerFactory">Comparer to compare <typeparamref name="TKey"/></param>
+        /// <param name="cachingType">Type of cache used to detect changes</param>
         /// <param name="primaryKeyColumn">The column used as primary key</param>
         /// <param name="additionalPrimaryKeyColumns">Additional column names for the primary key</param>
         /// <param name="rowFactory">Function to transform <see cref="Row"/> into <typeparamref name="TRow"/></param>
-        internal MappedSqlCachedQuery(Database db, string query, Func<Row,TRow> rowFactory, Func<TRow,TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns) : base(Guid.NewGuid())
+        internal MappedSqlCachedQuery(Database db, string query, Func<Row,TRow> rowFactory, Func<TRow,TKey> keyExtractor, Func<RowSchema, IEqualityComparer<TKey>> keyComparerFactory, CachingType cachingType, string primaryKeyColumn, params string[] additionalPrimaryKeyColumns) : base(Guid.NewGuid())
         {
             _rowFactory = rowFactory;
             _keyExtractor = keyExtractor;
 
-            var view = SetupView(db, query, primaryKeyColumn, additionalPrimaryKeyColumns);
+            switch (cachingType)
+            {
+                case CachingType.InMemory:
+                    _view = new InMemoryCache(db,query, new[] {primaryKeyColumn}.Union(additionalPrimaryKeyColumns).ToArray());
+                    break;
+                case CachingType.SqlTable:
+                    _view = new SqlTableCache(db, query, new[] {primaryKeyColumn}.Union(additionalPrimaryKeyColumns).ToArray());
+                    break;
+                case CachingType.SqlInMemoryTable:
+                    _view = new SqlMemoryTableCache(db, query, new[] {primaryKeyColumn}.Union(additionalPrimaryKeyColumns).ToArray());
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(cachingType), cachingType, null);
+            }
+            
 
             lock (_dataAccessLock)
             {
-                view.OnTableDataChanged += DataChanged;
-                _disposeHelper.Attach(() => view.OnTableDataChanged -= DataChanged);
-
-                RowSchema schema = view.CacheTable.Value.Schema;
-                _rows = new ReducableDictionary<TKey, TRow>(keyComparerFactory(schema));
-
-                db.Config.DatabaseConnectionString.WithReader($"SELECT * FROM {view.ViewName}", reader =>
+                _view.Invalidated += ViewOnInvalidated;
+                _disposeHelper.Attach(() => _view.Invalidated -= ViewOnInvalidated);
+                var data = _view.Initialize();
+                
+                _rows = new ReducableDictionary<TKey, TRow>(data.Count,keyComparerFactory(_view.Schema));
+                foreach (var row in data)
                 {
-                    while (reader.Read())
-                    {
-                        var row = schema.ReadRow(reader);
-                        var entry = rowFactory(row);
-                        var key = keyExtractor(entry);
-                        _rows.Add(key, entry);
-                    }
-                });
-                Console.WriteLine(DateTime.Now.TimeOfDay);
+                    var entry = rowFactory(row);
+                    var key = keyExtractor(entry);
+                    _rows.Add(key, entry);
+                }
+                
+                _disposeHelper.Attach(_view);
             }
         }
 
-        private SqlMemoryMergedViewObserver SetupView(Database db, string query, string primaryKeyColumn, string[] additionalPrimaryKeyColumns)
+        private void ViewOnInvalidated()
         {
-            var queryViewName = string.Format(db.Config.QueryViewNameTemplate,Guid.ToString().Replace('-','_'));
-
-            db.Config.DatabaseConnectionString.WithConnection
-            (
-                con =>
-                {
-                    using (var command = con.CreateCommand())
-                    {
-                        command.CommandText = $"CREATE VIEW {queryViewName} AS {Environment.NewLine}{query}";
-                        command.ExecuteNonQuery();
-                    }
-                }
-            );
-            var view = new SqlMemoryMergedViewObserver(db, queryViewName, primaryKeyColumn, additionalPrimaryKeyColumns);
-            _disposeHelper.Attach(view);
-            _disposeHelper.Attach(() =>
-            {
-                db.Config.DatabaseConnectionString.WithConnection(con =>
-                {
-                    using (var command = con.CreateCommand())
-                    {
-                        command.CommandText = $"DROP VIEW {view.ViewName}";
-                        command.ExecuteNonQuery();
-                    }
-                });
-            });
-            return view;
-        }
-
-        /// <summary>
-        /// Process view changes
-        /// </summary>
-        /// <param name="sender">The SqlObject that created the event</param>
-        /// <param name="e">The arguments that are redirected</param>
-        private void DataChanged(object sender, TableDataChangedEventArgs e)
-        {
+            var changes = _view.CalculateChanges();
+            
             lock (_dataAccessLock)
             {
-                switch (e.ChangeKind)
+                foreach (var row in changes.Item1)
                 {
-                    case RowChangeKind.INSERTED:
-                    case RowChangeKind.UPDATED:
-                        foreach (var row in e.Rows)
-                        {
-                            var entry = _rowFactory(row);
-                            var key = _keyExtractor(entry);
-                            _rows[key] = entry;
-                        }
-                        break;
-                    case RowChangeKind.DELETED:
-                        _rows.RemoveAll(e.Rows.Select(_rowFactory).Select(_keyExtractor));
-                        break;
+                    var entry = _rowFactory(row);
+                    var key = _keyExtractor(entry);
+                    _rows.Add(key,entry);
                 }
+                foreach (var row in changes.Item2)
+                {
+                    var entry = _rowFactory(row);
+                    var key = _keyExtractor(entry);
+                    _rows[key] = entry;
+                }
+                
+                _rows.RemoveAll(changes.Item3.Select(_rowFactory).Select(_keyExtractor));
             }
         }
+        
         /// <inheritdoc />
         public override void Dispose()
         {
